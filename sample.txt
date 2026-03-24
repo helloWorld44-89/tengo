@@ -1,0 +1,3 @@
+This is a sample text file for your Go CLI text editor.
+Line 2.
+Line 3.
