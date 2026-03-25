@@ -1,5 +1,5 @@
 package main
-import "os"
+import ("os") 
 
 
 
@@ -15,89 +15,146 @@ type Selection struct {
 var sel Selection
 
 
-func readKey() string {
-    buf := make([]byte, 8)
-    n, _ := os.Stdin.Read(buf)
 
-    // CTRL keys
-    if buf[0] == 17 { return "ctrl-q" } // Ctrl+Q
-    if buf[0] == 19 { return "ctrl-s" } // Ctrl+S
+func readEscSequence(first byte) string {
+    seq := []byte{first}
+    buf := make([]byte, 1)
 
-    // ENTER
-    if buf[0] == '\r' {
-        return "enter"
-    }
-	
-  	// TAB
-    if buf[0] == 9 {
-        return "tab"
-    }
-    // Ctrl+[
-        if buf[0] == 27 && n==1{
-        return "ctrl-["
-    }
-
-	// Ctrl+]
-        if buf[0] == 29 && n==1{
-        return "ctrl-]"
-    }
-
-    // BACKSPACE
-    if buf[0] == 127 {
-        return "backspace"
-    }
-    
-    if buf[0] == 3 { return "ctrl-c" } 
-    if buf[0] == 24 { return "ctrl-x" }
-    if buf[0] == 22 { return "ctrl-v" } 
-
-
-	//ctrl + arrow for rapid navigation
-	if buf[0] == 27 && n == 6 && buf[1] == '[' && buf[2] == '1' && buf[3] == ';' && buf[4] == '5' {
-		switch buf[5] {
-		case 'A':
-			return "ctrl-up"
-		case 'B':
-			return "ctrl-down"
-		case 'C':
-			return "ctrl-right"
-		case 'D':
-			return "ctrl-left"
-		}
-	}
-
-    // ESC or ARROW KEYS
-    if buf[0] == 27 {
-        if n == 1 {
-            return "esc"
+    // Keep reading until we hit a letter or "~"
+    for {
+        n, _ := os.Stdin.Read(buf)
+        if n == 0 {
+            break
         }
-        if buf[1] == 91 {
-            switch buf[2] {
-            case 'A':
-                return "up"
-            case 'B':
-                return "down"
-            case 'C':
-                return "right"
-            case 'D':
-                return "left"
-            }
+        seq = append(seq, buf[0])
+
+        if (buf[0] >= 'A' && buf[0] <= 'Z') ||
+           (buf[0] >= 'a' && buf[0] <= 'z') ||
+            buf[0] == '~' {
+            break
         }
     }
-	
-	if buf[0] == 19 { // CTRL-S
-		return "ctrl-s"
-	}
 
-    // Normal character (letters, numbers, symbols)
-    if n == 1 {
-        return string(buf[0])
-    }
-
-    return ""
+    return string(seq)
 }
 
 
+
+func readKey() string {
+    buf := make([]byte, 1)
+
+    // Read first byte
+    n, err := os.Stdin.Read(buf)
+    if err != nil || n == 0 {
+        return ""
+    }
+
+    b := buf[0]
+
+    // ============================================
+    // 1. Single-byte controls
+    // ============================================
+    switch b {
+    case 3:  return "ctrl-c"
+    case 22: return "ctrl-v"
+    case 24: return "ctrl-x"
+    case 19: return "ctrl-s"
+    case 17: return "ctrl-q"
+    case 9:  return "tab"
+    case 127:return "backspace"
+    case '\r': return "enter"
+    }
+
+    // ============================================
+    // 2. Printable characters
+    // ============================================
+    if b != 27 { // not ESC
+        return string([]byte{b})
+    }
+
+    // ============================================
+    // 3. ESC SEQUENCE — read the full sequence
+    // ============================================
+    seq := []byte{27}
+
+    // Read until final byte of an escape sequence
+    for {
+        n, err := os.Stdin.Read(buf)
+        if err != nil || n == 0 {
+            break
+        }
+        seq = append(seq, buf[0])
+
+        c := buf[0]
+
+        // Final bytes of ESC sequences: letter or '~'
+        if (c >= 'A' && c <= 'Z') ||
+           (c >= 'a' && c <= 'z') ||
+            c == '~' {
+            break
+        }
+    }
+
+    s := string(seq)
+
+    // ============================================
+    // 4. Bracketed paste mode
+    // ============================================
+    if s == "\x1b[200~" {
+        return "paste-begin"
+    }
+    if s == "\x1b[201~" {
+        return "paste-end"
+    }
+
+    // ============================================
+    // 5. Arrow keys
+    // ============================================
+    switch s {
+    case "\x1b[A": return "up"
+    case "\x1b[B": return "down"
+    case "\x1b[C": return "right"
+    case "\x1b[D": return "left"
+    }
+
+    // ============================================
+    // 6. Ctrl + Arrow
+    // ============================================
+    switch s {
+    case "\x1b[1;5A": return "ctrl-up"
+    case "\x1b[1;5B": return "ctrl-down"
+    case "\x1b[1;5C": return "ctrl-right"
+    case "\x1b[1;5D": return "ctrl-left"
+    }
+
+    // ============================================
+    // 7. Home / End
+    // ============================================
+    switch s {
+    case "\x1b[H", "\x1b[1~":
+        return "home"
+    case "\x1b[F", "\x1b[4~":
+        return "end"
+    }
+
+    // ============================================
+    // 8. Page Up / Page Down
+    // ============================================
+    switch s {
+    case "\x1b[5~": return "page-up"
+    case "\x1b[6~": return "page-down"
+    }
+
+    // ============================================
+    // 9. ALT + key
+    // ============================================
+    if len(s) == 2 && s[0] == 27 {
+        return "alt-" + string(s[1])
+    }
+
+    // Fallback
+    return s
+}
 
 
 func moveCursor(c *Cursor, key string, buf [][]rune) {

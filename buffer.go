@@ -142,31 +142,45 @@ func insertNewline(buf *[][]rune, cur *Cursor) {
     row := cur.Row
     col := cur.Col
 
-    // Break current line into left and right
-    left := (*buf)[row][:col]
-    right := (*buf)[row][col:]
+    // Split the line into two new lines
+    left := append([]rune{}, (*buf)[row][:col]...)
+    right := append([]rune{}, (*buf)[row][col:]...)
 
-    // Replace current line with left
-    (*buf)[row] = append([]rune{}, left...)
+    // Replace current row
+    (*buf)[row] = left
 
-    // Insert new line containing right AFTER this row
-    newBuf := append((*buf)[:row+1], append([][]rune{append([]rune{}, right...)}, (*buf)[row+1:]...)...)
+    // Insert new line
+    newBuf := make([][]rune, 0, len(*buf)+1)
+    newBuf = append(newBuf, (*buf)[:row+1]...)
+    newBuf = append(newBuf, right)
+    newBuf = append(newBuf, (*buf)[row+1:]...)
     *buf = newBuf
 
-    // Move cursor
-    cur.Row = row + 1
+    // Move cursor to the start of the new line
+    cur.Row++
     cur.Col = 0
 }
 
+
 func insertRune(buf *[][]rune, cur *Cursor, r rune) {
-    line := (*buf)[cur.Row]
-    newLine := append(line[:cur.Col], append([]rune{r}, line[cur.Col:]...)...)
-    (*buf)[cur.Row] = newLine
+    row := cur.Row
+    col := cur.Col
+
+    line := (*buf)[row]
+
+    // allocate new slice for safety
+    newLine := make([]rune, 0, len(line)+1)
+
+    newLine = append(newLine, line[:col]...)
+    newLine = append(newLine, r)
+    newLine = append(newLine, line[col:]...)
+
+    (*buf)[row] = newLine
     cur.Col++
 }
 
 
-func startSelectionIfNeeded(sel *Selection, cur Cursor) {
+func startSelectionIfNeeded(sel *Selection, cur *Cursor) {
     if !sel.Active {
         sel.Active = true
         sel.StartRow = cur.Row
@@ -175,7 +189,7 @@ func startSelectionIfNeeded(sel *Selection, cur Cursor) {
 }
 
 
-func updateSelection(sel *Selection, cur Cursor) {
+func updateSelection(sel *Selection, cur *Cursor) {
     sel.EndRow = cur.Row
     sel.EndCol = cur.Col
 }
@@ -196,3 +210,20 @@ func normalizeSelection(sel *Selection) (sr, sc, er, ec int) {
     return
 }
 
+func clampSelection(sel *Selection, buf [][]rune) {
+    // clamp row bounds
+    maxRow := len(buf) - 1
+    if sel.StartRow < 0 { sel.StartRow = 0 }
+    if sel.StartRow > maxRow { sel.StartRow = maxRow }
+    if sel.EndRow < 0 { sel.EndRow = 0 }
+    if sel.EndRow > maxRow { sel.EndRow = maxRow }
+
+    // clamp columns for each row
+    lineLenStart := len(buf[sel.StartRow])
+    if sel.StartCol < 0 { sel.StartCol = 0 }
+    if sel.StartCol > lineLenStart { sel.StartCol = lineLenStart }
+
+    lineLenEnd := len(buf[sel.EndRow])
+    if sel.EndCol < 0 { sel.EndCol = 0 }
+    if sel.EndCol > lineLenEnd { sel.EndCol = lineLenEnd }
+}

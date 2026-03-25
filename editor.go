@@ -1,6 +1,5 @@
 package main
 
-import "fmt"
 
 func runQuickEditor(filePath string) {
     cursor := Cursor{0, 0}
@@ -12,91 +11,122 @@ func runQuickEditor(filePath string) {
     status := "Editing"
 
     for {
-        draw(buf, cursor, filePath, status, &sel)
+        if !isPasting {
+            draw(buf, cursor, filePath, status, &sel)
+        }
+
         key := readKey()
-        fmt.Println("KEY:", key)
-	
+
         switch key {
+
         case "ctrl-q", "esc":
             return
+
         case "up", "down", "left", "right":
-			sel.Active = false
+
             moveCursor(&cursor, key, buf)
+
         case "tab":
-			sel.Active = false
-            for i := 0; i < 4; i++ { insertRune(&buf, &cursor, ' ') }
+
+            for i := 0; i < 4; i++ {
+                insertRune(&buf, &cursor, ' ')
+            }
+
         case "enter":
-			sel.Active = false
             insertNewline(&buf, &cursor)
+
         case "backspace":
-			sel.Active = false
+
             backspace(&buf, &cursor)
+
         case "ctrl-s":
             saveFile(filePath, buf)
+
         case "ctrl-[":
             removeLineTab(&buf, &cursor, &sel)
-		case "ctrl-]":
-			addLineTab(&buf, &cursor, &sel)
-		
-        case "ctrl-up":
-            // Step 1: anchor BEFORE movement
-            if !sel.Active {
-                sel.Active = true
-                sel.StartRow = cursor.Row
-                sel.StartCol = cursor.Col
-            }
 
-            // Move cursor UP
+        case "ctrl-]":
+            addLineTab(&buf, &cursor, &sel)
+
+        // -------- CTRL + ARROWS --------
+        case "ctrl-left":
+            startSelectionIfNeeded(&sel, &cursor)
+            if cursor.Col > 0 {
+                cursor.Col--
+            } else if cursor.Row > 0 {
+                cursor.Row--
+                cursor.Col = len(buf[cursor.Row])
+            }
+            updateSelection(&sel, &cursor)
+            clampSelection(&sel, buf)
+
+        case "ctrl-right":
+            startSelectionIfNeeded(&sel, &cursor)
+            lineLen := len(buf[cursor.Row])
+            if cursor.Col < lineLen {
+                cursor.Col++
+            } else if cursor.Row < len(buf)-1 {
+                cursor.Row++
+                cursor.Col = 0
+            }
+            updateSelection(&sel, &cursor)
+            clampSelection(&sel, buf)
+
+        case "ctrl-up":
+            startSelectionIfNeeded(&sel, &cursor)
             if cursor.Row > 0 {
                 cursor.Row--
+                if cursor.Col > len(buf[cursor.Row]) {
+                    cursor.Col = len(buf[cursor.Row])
+                }
             }
-
-            // Update selection end
-            sel.EndRow = cursor.Row
-            sel.EndCol = cursor.Col
-
-
+            updateSelection(&sel, &cursor)
+            clampSelection(&sel, buf)
 
         case "ctrl-down":
-            // Step 1: anchor BEFORE movement
-            if !sel.Active {
-                sel.Active = true
-                sel.StartRow = cursor.Row
-                sel.StartCol = cursor.Col
-            }
-
-            // Move cursor DOWN
+            startSelectionIfNeeded(&sel, &cursor)
             if cursor.Row < len(buf)-1 {
                 cursor.Row++
+                if cursor.Col > len(buf[cursor.Row]) {
+                    cursor.Col = len(buf[cursor.Row])
+                }
             }
+            updateSelection(&sel, &cursor)
+            clampSelection(&sel, buf)
 
-            // Update selection end
-            sel.EndRow = cursor.Row
-            sel.EndCol = cursor.Col
-
-		case "ctrl-left":
-			startSelectionIfNeeded(&sel, cursor)
-			cursor.Col--
-			updateSelection(&sel, cursor)
-
-		case "ctrl-right":
-			startSelectionIfNeeded(&sel, cursor)
-			cursor.Col++
-			updateSelection(&sel, cursor)
-
-        case "ctrl-c": 
+        case "ctrl-c":
             copySelection(buf, &sel)
 
-        case "ctrl-x": 
+        case "ctrl-x":
             cutSelection(&buf, &cursor, &sel)
 
-        case "ctrl-v": 
+        case "paste-begin":
+            inBracketedPaste = true
+
+        case "paste-end":
+            inBracketedPaste = false
+
+        case "ctrl-v":
             pasteText(&buf, &cursor)
 
-
+        // -------- SINGLE DEFAULT --------
         default:
-			sel.Active = false
+
+            // If inside bracketed paste, treat bytes as literal input
+            if inBracketedPaste {
+                for _, b := range key {
+                    if b == '\n' {
+                        insertNewline(&buf, &cursor)
+                    } else {
+                        insertRune(&buf, &cursor, rune(b))
+                    }
+                }
+                continue
+            }
+
+            // Normal character input
             if len(key) == 1 && key[0] >= 32 {
+                sel.Active = false
                 insertRune(&buf, &cursor, rune(key[0]))
             }
         }

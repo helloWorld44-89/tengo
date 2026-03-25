@@ -56,6 +56,10 @@ func main() {
     // filepath := os.Args[1]
     restore := enableRaw()
     defer restore()
+	
+	fmt.Print("\x1b[?2004h") // enable bracketed paste
+	defer fmt.Print("\x1b[?2004l") // disable on exit
+
 		
 	fmt.Print("\x1b[?1049h")
 	defer fmt.Print("\x1b[?1049l")

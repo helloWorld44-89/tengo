@@ -1,41 +1,27 @@
 package main
 
 import (
-    "bytes"
-    "os/exec"
-    "runtime"
+	"os/exec"
+	"runtime"
+	"strings"
+
+	"github.com/tiagomelo/go-clipboard/clipboard"
 )
 
 var internalClipboard string
+var isPasting bool
+var inBracketedPaste bool
+var pasteBuffer strings.Builder
 
 // --- Copy string to system clipboard if possible ---
 func copyToClipboard(text string) {
-    internalClipboard = text // always store internally
-
-    switch runtime.GOOS {
-    case "darwin": // macOS
-        cmd := exec.Command("pbcopy")
-        cmd.Stdin = bytes.NewBufferString(text)
-        _ = cmd.Run()
-
-    case "linux":
-        // try xclip
-        cmd := exec.Command("xclip", "-selection", "clipboard")
-        cmd.Stdin = bytes.NewBufferString(text)
-        if cmd.Run() == nil {
-            return
-        }
-        // try xsel
-        cmd = exec.Command("xsel", "--clipboard", "--input")
-        cmd.Stdin = bytes.NewBufferString(text)
-        _ = cmd.Run()
-
-    case "windows":
-        cmd := exec.Command("clip")
-        cmd.Stdin = bytes.NewBufferString(text)
-        _ = cmd.Run()
+    c := clipboard.New()
+    err := c.CopyText(text)
+    if err != nil {
+        panic(err)
     }
 }
+
 
 // --- Paste string from system clipboard (fallback to internal) ---
 func pasteFromClipboard() string {
@@ -57,11 +43,19 @@ func pasteFromClipboard() string {
             return string(out)
         }
 
+    
     case "windows":
-        out, err := exec.Command("powershell", "-command", "Get-Clipboard").Output()
+        out, err := exec.Command(
+            "powershell.exe",
+            "-NoProfile",
+            "-STA",
+            "-Command",
+            "Get-Clipboard").Output()
+
         if err == nil {
             return string(out)
         }
+
     }
 
     return internalClipboard
@@ -69,44 +63,31 @@ func pasteFromClipboard() string {
 
 
 func getSelectedText(buf [][]rune, sel *Selection) string {
-    
     sr, sc, er, ec := normalizeSelection(sel)
 
-    // Multi-line → treat as whole-line copy
-    if sr != er {
-        sc = 0
-        // ec handled per-line
-    }
-
-
-    wholeLine := (sc == ec)
-
+    // Single-line selection
     if sr == er {
-        if wholeLine {
-            return string(buf[sr]) + "\n"
-        }
         return string(buf[sr][sc:ec])
     }
 
-    var out string
+    var out strings.Builder
 
-    if wholeLine {
-        for i := sr; i <= er; i++ {
-            out += string(buf[i]) + "\n"
-        }
-        return out
-    }
+    // First line: from sc → end
+    out.WriteString(string(buf[sr][sc:]))
+    out.WriteByte('\n')
 
-    out += string(buf[sr][sc:]) + "\n"
-
+    // Middle lines: full lines
     for i := sr + 1; i < er; i++ {
-        out += string(buf[i]) + "\n"
+        out.WriteString(string(buf[i]))
+        out.WriteByte('\n')
     }
 
-    out += string(buf[er][:ec])
+    // Last line: from start → ec
+    out.WriteString(string(buf[er][:ec]))
 
-    return out
+    return out.String()
 }
+
 
 
 func copySelection(buf [][]rune, sel *Selection) {
@@ -146,41 +127,33 @@ func deleteSelection(buf *[][]rune, cur *Cursor, sel *Selection) {
     newLine := append(first, last...)
 
     // replace all lines from sr..er with newLine
-    *buf = append((*buf)[:sr], append([][]rune{newLine}, (*buf)[er+1:]...)...)
+ 
+    newBuf := make([][]rune, 0, len(*buf)-(er-sr))
+    newBuf = append(newBuf, (*buf)[:sr]...)
+    newBuf = append(newBuf, newLine)
+    newBuf = append(newBuf, (*buf)[er+1:]...)
+    *buf = newBuf
+
 
     cur.Row, cur.Col = sr, sc
     sel.Active = false
 }
 
 func pasteText(buf *[][]rune, cur *Cursor) {
-    text := pasteFromClipboard()
-
-    i := 0
-    for i < len(text) {
-        ch := text[i]
-
-        // Handle CRLF (Windows line endings)
-        if ch == '\r' {
-            if i+1 < len(text) && text[i+1] == '\n' {
-                // Treat CRLF as a single newline
-                insertNewline(buf, cur)
-                i += 2
-                continue
-            }
-            // lone CR (rare)
-            insertNewline(buf, cur)
-            i++
+    text := pasteFromClipboard()    
+    // text = strings.ReplaceAll(text, "\r\n", "\n")
+    // text = strings.ReplaceAll(text, "\r", "\n")
+    isPasting = true
+    text = strings.TrimRight(text, "\n\r")
+    for _, ch := range text {
+        switch ch {
+        case '\r':
             continue
-        }
-
-        if ch == '\n' {
+        case '\n':
             insertNewline(buf, cur)
-            i++
-            continue
+        default:
+            insertRune(buf, cur, ch)
         }
-
-        // Normal character
-        insertRune(buf, cur, rune(ch))
-        i++
     }
+    isPasting = false
 }
