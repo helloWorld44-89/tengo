@@ -139,17 +139,22 @@ func addLineTab(buf *[][]rune, cur *Cursor, sel *Selection) {
 
 
 func insertNewline(buf *[][]rune, cur *Cursor) {
-    line := (*buf)[cur.Row]
+    row := cur.Row
+    col := cur.Col
 
-    left := append([]rune{}, line[:cur.Col]...)
-    right := append([]rune{}, line[cur.Col:]...)
+    // Break current line into left and right
+    left := (*buf)[row][:col]
+    right := (*buf)[row][col:]
 
-    (*buf)[cur.Row] = left
+    // Replace current line with left
+    (*buf)[row] = append([]rune{}, left...)
 
-    *buf = append((*buf)[:cur.Row+1],
-        append([][]rune{right}, (*buf)[cur.Row+1:]...)...)
+    // Insert new line containing right AFTER this row
+    newBuf := append((*buf)[:row+1], append([][]rune{append([]rune{}, right...)}, (*buf)[row+1:]...)...)
+    *buf = newBuf
 
-    cur.Row++
+    // Move cursor
+    cur.Row = row + 1
     cur.Col = 0
 }
 

@@ -1,5 +1,7 @@
 package main
 
+import "fmt"
+
 func runQuickEditor(filePath string) {
     cursor := Cursor{0, 0}
 
@@ -12,6 +14,7 @@ func runQuickEditor(filePath string) {
     for {
         draw(buf, cursor, filePath, status, &sel)
         key := readKey()
+        fmt.Println("KEY:", key)
 	
         switch key {
         case "ctrl-q", "esc":
@@ -35,15 +38,41 @@ func runQuickEditor(filePath string) {
 		case "ctrl-]":
 			addLineTab(&buf, &cursor, &sel)
 		
-		case "ctrl-up":
-			startSelectionIfNeeded(&sel, cursor)
-			cursor.Row--
-			updateSelection(&sel, cursor)
+        case "ctrl-up":
+            // Step 1: anchor BEFORE movement
+            if !sel.Active {
+                sel.Active = true
+                sel.StartRow = cursor.Row
+                sel.StartCol = cursor.Col
+            }
 
-		case "ctrl-down":
-			startSelectionIfNeeded(&sel, cursor)
-			cursor.Row++
-			updateSelection(&sel, cursor)
+            // Move cursor UP
+            if cursor.Row > 0 {
+                cursor.Row--
+            }
+
+            // Update selection end
+            sel.EndRow = cursor.Row
+            sel.EndCol = cursor.Col
+
+
+
+        case "ctrl-down":
+            // Step 1: anchor BEFORE movement
+            if !sel.Active {
+                sel.Active = true
+                sel.StartRow = cursor.Row
+                sel.StartCol = cursor.Col
+            }
+
+            // Move cursor DOWN
+            if cursor.Row < len(buf)-1 {
+                cursor.Row++
+            }
+
+            // Update selection end
+            sel.EndRow = cursor.Row
+            sel.EndCol = cursor.Col
 
 		case "ctrl-left":
 			startSelectionIfNeeded(&sel, cursor)
@@ -54,6 +83,16 @@ func runQuickEditor(filePath string) {
 			startSelectionIfNeeded(&sel, cursor)
 			cursor.Col++
 			updateSelection(&sel, cursor)
+
+        case "ctrl-c": 
+            copySelection(buf, &sel)
+
+        case "ctrl-x": 
+            cutSelection(&buf, &cursor, &sel)
+
+        case "ctrl-v": 
+            pasteText(&buf, &cursor)
+
 
         default:
 			sel.Active = false

@@ -46,6 +46,11 @@ func readKey() string {
     if buf[0] == 127 {
         return "backspace"
     }
+    
+    if buf[0] == 3 { return "ctrl-c" } 
+    if buf[0] == 24 { return "ctrl-x" }
+    if buf[0] == 22 { return "ctrl-v" } 
+
 
 	//ctrl + arrow for rapid navigation
 	if buf[0] == 27 && n == 6 && buf[1] == '[' && buf[2] == '1' && buf[3] == ';' && buf[4] == '5' {
