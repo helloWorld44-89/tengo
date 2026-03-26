@@ -6,13 +6,17 @@ import (
 )
 
 
+var rowOffset int
+var colOffset int
+
+
 func drawTopBar(filename string, width int) string {
     //title := fmt.Sprintf("  %s — tenGo Quick Edit  ", filename)
-	title := "  " +filename+ " — tenGo Quick Edit  "
+	title := "  " +filename+ " | tenGo Quick Edit  "
 	space:= (width - len(title))/2
-	title = strings.Repeat("*", space) + title
+	title = strings.Repeat("-", space) + title
     if len(title) < width {
-        title += strings.Repeat("*", space)
+        title += strings.Repeat("-", space)
     } else if len(title) > width {
         title = title[:width]
     }
@@ -20,7 +24,7 @@ func drawTopBar(filename string, width int) string {
 }
 
 func drawBottomBar(width int) string {
-    shortcuts := "  ^S Save   ^Q Quit   ^[ Del Line Tab   ^] Add Line Tab   Ctrl+Arrow Select  Ctrl+C Copy  Ctrl+V Paste  Ctrl+X Cut  "
+    shortcuts := "  ^S Save   ^Q Quit   ^[ Del Line Tab   ^] Add Line Tab   ^+Arrow Select  ^+C Copy  ^+V Paste  ^+X Cut  "
     if len(shortcuts) < width {
         shortcuts += strings.Repeat(" ", width-len(shortcuts))
     } else if len(shortcuts) > width {
@@ -52,8 +56,16 @@ func draw(buf [][]rune, cur Cursor, filename string, status string, sel *Selecti
 
     // === FILE CONTENT ===
 
-	for i := 0; i < usableRows && i < len(buf); i++ {
-		line := buf[i]
+	
+	for screenRow := 0; screenRow < usableRows; screenRow++ {
+		fileRow := rowOffset + screenRow
+
+		if fileRow >= len(buf) {
+			fmt.Print("\n")
+			continue
+		}
+
+		line := buf[fileRow]
 		
 		lineLen := len(line)
 		if sc < 0 { sc = 0 }
@@ -68,15 +80,15 @@ func draw(buf [][]rune, cur Cursor, filename string, status string, sel *Selecti
 
 		// Use normalized selection only
 		if sel.Active {
-			sr, sc, er, ec := normalizeSelection(sel)
+			sr, sc, er, ec = normalizeSelection(sel)
 
-			if i < sr || i > er {
+			if fileRow< sr || fileRow> er {
 				fmt.Println(string(line))
 				continue
 			}
 
 			// First or last row
-			if i == sr || i == er {
+			if fileRow== sr || fileRow== er {
 				lineLen := len(line)
 
 				if sc < 0 { sc = 0 }
@@ -104,7 +116,7 @@ func draw(buf [][]rune, cur Cursor, filename string, status string, sel *Selecti
 
 
 		// Middle lines (full highlight)
-		if i > sr && i < er {
+		if fileRow> sr && fileRow< er {
 			fmt.Print("\x1b[7m", string(line), "\x1b[0m\n")
 			continue
 		}
@@ -129,5 +141,6 @@ func draw(buf [][]rune, cur Cursor, filename string, status string, sel *Selecti
     fmt.Print(status)
 
     // === CURSOR ===
-    fmt.Printf("\x1b[%d;%dH", cur.Row+2, cur.Col+1)
+    cursorScreenRow := (cur.Row - rowOffset) + 2
+	fmt.Printf("\x1b[%d;%dH", cursorScreenRow, cur.Col+1)
 }

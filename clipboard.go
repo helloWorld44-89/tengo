@@ -109,6 +109,9 @@ func cutSelection(buf *[][]rune, cur *Cursor, sel *Selection) {
 }
 
 func deleteSelection(buf *[][]rune, cur *Cursor, sel *Selection) {
+    if !sel.Active {
+        return
+    }
     sr, sc, er, ec := normalizeSelection(sel)
 
     // simple case: same line

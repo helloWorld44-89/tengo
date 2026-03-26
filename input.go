@@ -1,5 +1,8 @@
 package main
-import ("os") 
+
+import (
+	"os"
+) 
 
 
 
@@ -157,12 +160,13 @@ func readKey() string {
 }
 
 
-func moveCursor(c *Cursor, key string, buf [][]rune) {
+func moveCursor(c *Cursor, key string, buf [][]rune, rowOffset *int, screenRows int) {
+
     switch key {
+
     case "up":
         if c.Row > 0 {
             c.Row--
-            // clamp
             if c.Col > len(buf[c.Row]) {
                 c.Col = len(buf[c.Row])
             }
@@ -171,7 +175,6 @@ func moveCursor(c *Cursor, key string, buf [][]rune) {
     case "down":
         if c.Row < len(buf)-1 {
             c.Row++
-            // clamp
             if c.Col > len(buf[c.Row]) {
                 c.Col = len(buf[c.Row])
             }
@@ -192,6 +195,15 @@ func moveCursor(c *Cursor, key string, buf [][]rune) {
             c.Row++
             c.Col = 0
         }
+    }
+
+    // === SCROLLING (VERTICAL) ===
+    if c.Row < *rowOffset {
+        *rowOffset = c.Row
+    }
+
+    if c.Row >= *rowOffset+screenRows {
+        *rowOffset = c.Row - screenRows + 1
     }
 }
 

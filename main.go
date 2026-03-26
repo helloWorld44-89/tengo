@@ -1,9 +1,11 @@
 package main
-import ("fmt"
-		 "os"
-		 "strings" 
-		 "bufio"
-		 )
+
+import (
+	"bufio"
+	"fmt"
+	"os"
+	"strings"
+)
 
 
 
@@ -45,15 +47,15 @@ func saveFile(path string, buf [][]rune) error {
 
 ///Main Run Here
 func main() {
-	var filePath = "sample.json"
+	//var filePath = "sample.json"
 	
 	
-    // if len(os.Args) < 2 {
-    //     fmt.Println("Usage: editor <filename>")
-    //     return
-    // }
+    if len(os.Args) < 2 {
+        fmt.Println("Usage: editor <filename>")
+        return
+    }
 
-    // filepath := os.Args[1]
+    filePath := os.Args[1]
     restore := enableRaw()
     defer restore()
 	
