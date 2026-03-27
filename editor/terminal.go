@@ -1,11 +1,13 @@
-package main
+package editor
 
 import (
-		 "os"
-		 "golang.org/x/term"
-		 "syscall")
+	"os"
+	"syscall"
 
-func enableRaw() func() { // <--This is to put terminal in Raw mode.
+	"golang.org/x/term"
+)
+
+func EnableRaw() func() { // <--This is to put terminal in Raw mode.
 	oldState, _ :=term.MakeRaw(int(syscall.Stdin))
 	return func() {
 		term.Restore(int(syscall.Stdin), oldState)

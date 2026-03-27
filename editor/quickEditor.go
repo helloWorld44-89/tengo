@@ -1,9 +1,11 @@
-package main
+package editor
 
-func runQuickEditor(filePath string) {
+import "tengo/file"
+
+func RunQuickEditor(filePath string) {
 	cursor := Cursor{0, 0}
 
-	content, err := openFile(filePath)
+	content, err := file.OpenFile(filePath)
 	if err != nil {
 		panic(err)
 	}
@@ -47,13 +49,18 @@ func runQuickEditor(filePath string) {
 			backspace(&buf, &cursor)
 
 		case "ctrl-s":
-			saveFile(filePath, buf)
+			file.SaveFile(filePath, buf)
 
 		case "ctrl-[":
 			removeLineTab(&buf, &cursor, &sel)
 
 		case "ctrl-]":
 			addLineTab(&buf, &cursor, &sel)
+		
+		
+		case "ctrl-h":
+			ShowHelp()
+
 
 		// -------- CTRL + ARROWS --------
 		case "ctrl-left":
@@ -100,6 +107,18 @@ func runQuickEditor(filePath string) {
 			}
 			updateSelection(&sel, &cursor)
 			clampSelection(&sel, buf)
+
+		//=======Alt + Arrows for fast Navigation=======
+		case "alt-left":
+			moveCursor(&cursor, key, buf, &rowOffset, usableRows)
+		case "alt-right":
+			moveCursor(&cursor, key, buf, &rowOffset, usableRows)
+		case "alt-up":
+			moveCursor(&cursor, key, buf, &rowOffset, usableRows)
+		case "alt-down":
+			moveCursor(&cursor, key, buf, &rowOffset, usableRows)
+
+		// -------- CLIPBOARD --------
 
 		case "ctrl-c":
 			copySelection(buf, &sel)

@@ -1,7 +1,8 @@
-package main
+package editor
 
 import (
 	"os"
+	"strings"
 ) 
 
 
@@ -64,6 +65,7 @@ func readKey() string {
     case 19: return "ctrl-s"
     case 17: return "ctrl-q"
     case 9:  return "tab"
+    case 8:  return "ctrl-h"
     case 127:return "backspace"
     case '\r': return "enter"
     }
@@ -119,6 +121,26 @@ func readKey() string {
     case "\x1b[C": return "right"
     case "\x1b[D": return "left"
     }
+    // ============================================
+    // 6. ALT + Arrow
+    // ============================================
+    
+
+    if strings.HasPrefix(s, "\x1b[1;3") {
+        switch s[len(s)-1] {
+        case 'A':
+            return "alt-up"
+        case 'B':
+            return "alt-down"
+        case 'C':
+            return "alt-right"
+        case 'D':
+            return "alt-left"
+        }
+    }
+
+
+    
 
     // ============================================
     // 6. Ctrl + Arrow
@@ -195,6 +217,53 @@ func moveCursor(c *Cursor, key string, buf [][]rune, rowOffset *int, screenRows 
             c.Row++
             c.Col = 0
         }
+    
+    case "alt-left":
+        // Move Left by 4 spaces
+        for range 4 {
+            if c.Col > 0 {
+                c.Col--
+            }  else {
+                break
+            }
+        }
+
+    
+    case "alt-right":
+        // Move Right by 4 spaces
+        for range 4 {
+            if c.Col < len(buf[c.Row]) {
+                c.Col++
+            }  else {
+                break
+            }
+        }
+    case "alt-up":
+        // Move Up by 4 lines
+        for range 4 {
+            if c.Row > 0 {
+                c.Row--
+                if c.Col > len(buf[c.Row]) {
+                    c.Col = len(buf[c.Row])
+                }
+            } else {
+                break
+            }
+        }
+    case "alt-down":
+        // Move Down by 4 lines
+        for range 4 {
+            if c.Row < len(buf)-1 {
+                c.Row++
+                if c.Col > len(buf[c.Row]) {
+                    c.Col = len(buf[c.Row])
+                }
+            } else {
+                break
+            }
+        }
+
+
     }
 
     // === SCROLLING (VERTICAL) ===

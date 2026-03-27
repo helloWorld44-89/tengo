@@ -1,4 +1,4 @@
-package main
+package editor
 
 import "strings"
 
@@ -226,4 +226,19 @@ func clampSelection(sel *Selection, buf [][]rune) {
     lineLenEnd := len(buf[sel.EndRow])
     if sel.EndCol < 0 { sel.EndCol = 0 }
     if sel.EndCol > lineLenEnd { sel.EndCol = lineLenEnd }
+}
+
+
+func ShowHelp() {
+    ShowPopup("Keyboard Shortcuts", []string{
+        "Ctrl-S   Save File",
+        "Ctrl-Q   Quit Editor",
+        "Ctrl-F   Find",
+        "Ctrl-R   Replace",
+        "Alt+Left   Word Left",
+        "Alt+Right  Word Right",
+        "Shift+Arrows Select",
+        "",
+        "This is the full editor help menu.",
+    })
 }

@@ -1,4 +1,4 @@
-package main
+package editor
 
 import (
 	"fmt"
@@ -24,7 +24,7 @@ func drawTopBar(filename string, width int) string {
 }
 
 func drawBottomBar(width int) string {
-    shortcuts := "  ^S Save   ^Q Quit   ^[ Del Line Tab   ^] Add Line Tab   ^+Arrow Select  ^+C Copy  ^+V Paste  ^+X Cut  "
+    shortcuts := " --      ^S Save  ^Q Quit  ^[or] + or - Line Tab   ^+Arrow Select  ^+C Copy  ^+V Paste  ^+X Cut  Alt+Arrow Move+     --"
     if len(shortcuts) < width {
         shortcuts += strings.Repeat(" ", width-len(shortcuts))
     } else if len(shortcuts) > width {
@@ -144,3 +144,109 @@ func draw(buf [][]rune, cur Cursor, filename string, status string, sel *Selecti
     cursorScreenRow := (cur.Row - rowOffset) + 2
 	fmt.Printf("\x1b[%d;%dH", cursorScreenRow, cur.Col+1)
 }
+//==========This is for the FULL Editor, not the quick editor.===========
+func fulldrawTopBar(filename string, width int) string {
+    //title := fmt.Sprintf("  %s — tenGo Quick Edit  ", filename)
+	title := "  " +filename+ " | tenGo Quick Edit  "
+	space:= (width - len(title))/2
+	title = strings.Repeat("-", space) + title
+    if len(title) < width {
+        title += strings.Repeat("-", space)
+    } else if len(title) > width {
+        title = title[:width]
+    }
+    return "\x1b[7m" + title + "\x1b[0m"
+}
+
+func fulldrawBottomBar(width int) string {
+    shortcuts := " --      ^S Save  ^Q Quit  ^[or] + or - Line Tab   ^+Arrow Select  ^+C Copy  ^+V Paste  ^+X Cut  Alt+Arrow Move+     --"
+    if len(shortcuts) < width {
+        shortcuts += strings.Repeat(" ", width-len(shortcuts))
+    } else if len(shortcuts) > width {
+        shortcuts = shortcuts[:width]
+    }
+    return "\x1b[7m" + shortcuts + "\x1b[0m"
+}
+
+
+
+
+// DrawPopup displays a centered modal window with the given title and lines.
+// This blocks UNTIL ESC or q is pressed.
+// func DrawPopup(title string, lines []string) {
+//     rows, cols := getTerminalSize()
+
+//     // Window size
+//     w := cols / 2
+//     h := rows / 2
+
+//     // Top-left corner
+//     x := (cols - w) / 2
+//     y := (rows - h) / 2
+
+//     // Dim the background
+//     fmt.Print("\x1b[2m")
+
+//     // Draw background box
+//     for i := 0; i < h; i++ {
+//        MoveCursor(y+i, x)
+//         fmt.Print("\x1b[49m\x1b[37m" + strings.Repeat(" ", w))
+//     }
+
+//     // Reset dim for popup
+//     fmt.Print("\x1b[22m")
+
+//     // Draw border
+//    MoveCursor(y, x)
+//     fmt.Print("┌" + strings.Repeat("─", w-2) + "┐")
+
+//     for i := 1; i < h-1; i++ {
+//        MoveCursor(y+i, x)
+//         fmt.Print("│")
+//        MoveCursor(y+i, x+w-1)
+//         fmt.Print("│")
+//     }
+
+//    MoveCursor(y+h-1, x)
+//     fmt.Print("└" + strings.Repeat("─", w-2) + "┘")
+
+//     // Title
+//     if len(title) > w-4 {
+//         title = title[:w-4]
+//     }
+//    MoveCursor(y, x+2)
+//     fmt.Print(title)
+
+//     // Content
+//     for i, line := range lines {
+//         if i >= h-2 {
+//             break
+//         }
+//        MoveCursor(y+1+i, x+2)
+//         if len(line) > w-4 {
+//             line = line[:w-4]
+//         }
+//         fmt.Print(line)
+//     }
+
+//     // Footer / hint
+//    MoveCursor(y+h-2, x+2)
+//     fmt.Print("[ESC] close")
+
+//     // Input loop (blocks until ESC or q)
+//     for {
+//         k := readKey()
+//         if k == "esc" || k == "q" {
+//             break
+//         }
+//     }
+
+//     // Clear popup (restore screen)
+//     redrawAfterPopup()
+// }
+
+// // Clears the popup area & redraws the editor
+// func redrawAfterPopup() {
+//     fmt.Print("\x1b[2J")
+//     fmt.Print("\x1b[H")
+// }
