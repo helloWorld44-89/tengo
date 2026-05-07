@@ -12,20 +12,24 @@ Deliver a cross-platform CLI text editor in Go with:
 - Refactor error handling for user-friendly messages (no panics) **[Done]**
 - Add minimal tests for quick editor core functions **[Done]**
 - Audit and finalize all keyboard shortcuts for consistency and discoverability
-- Add a help popup or overlay listing all shortcuts **[Done]**
-- Add find & replace feature (Ctrl+H for find, Ctrl+R for replace) **[Done]**
+- Add or refresh a help popup or overlay listing all shortcuts
 - Improve status and info bars for clarity (file name, mode, save status)
-- Enhance UI aesthetics: borders, colors, and layout for a modern terminal look
+- Enhance UI aesthetics: borders, colors, and layout for a modern terminal look. Add an initial ascii art visual. 
 - Update inline code comments and quick editor documentation
 
 ### Phase B: Full Editor Mode
 - Implement advanced navigation, selection, and editing shortcuts
 - Add multi-file/tab support (optional)
 - Configurable keybindings
+- Split views
+- Auto double quote/ double brackets
+- Wrap control
+- Add cli features (e.g. tengo test.txt -F "text" -R "newText" (Find and Replace), )
 
 ### Phase C: Syntax Verification
 - Integrate parsers/validators for YAML, JSON, XML, INI
 - Show errors inline or in a status bar
+- scan on demand or automatically for syntax
 
 ### Phase D: Polish & Ship
 - Cross-platform testing (Windows, Linux, macOS)
