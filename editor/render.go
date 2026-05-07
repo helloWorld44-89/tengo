@@ -5,34 +5,54 @@ import (
 	"strings"
 )
 
-
+// rowOffset and colOffset track the viewport position within the file
 var rowOffset int
 var colOffset int
 
-
+// drawTopBar renders the top header bar showing the current file name and editor title
 func drawTopBar(filename string, width int) string {
-    //title := fmt.Sprintf("  %s — tenGo Quick Edit  ", filename)
-	title := "  " +filename+ " | tenGo Quick Edit  "
-	space:= (width - len(title))/2
-	title = strings.Repeat("-", space) + title
+    // Use blue background for top bar
+    title := fmt.Sprintf("  📝 %s  |  tenGo Quick Editor  ", filename)
     if len(title) < width {
-        title += strings.Repeat("-", space)
+        title += strings.Repeat(" ", width-len(title))
     } else if len(title) > width {
         title = title[:width]
     }
-    return "\x1b[7m" + title + "\x1b[0m"
+    // Blue background (44) with white text (37)
+    return "\x1b[44;37;1m" + title + "\x1b[0m"
 }
 
+// drawBottomBar renders the help/shortcut hint bar at the bottom of the editor
 func drawBottomBar(width int) string {
-    shortcuts := " --      ^S Save  ^Q Quit  ^[or] + or - Line Tab   ^+Arrow Select  ^+C Copy  ^+V Paste  ^+X Cut  Alt+Arrow Move+     --"
-    if len(shortcuts) < width {
-        shortcuts += strings.Repeat(" ", width-len(shortcuts))
-    } else if len(shortcuts) > width {
-        shortcuts = shortcuts[:width]
-    }
-    return "\x1b[7m" + shortcuts + "\x1b[0m"
+	info := " 💡 Ctrl+H for help • Ctrl+S to save • Ctrl+Q to quit "
+	if len(info) < width {
+		info += strings.Repeat(" ", width-len(info))
+	} else if len(info) > width {
+		info = info[:width]
+	}
+	// Cyan background (46) with black text (30)
+	return "\x1b[46;30m" + info + "\x1b[0m"
 }
 
+// drawStatusBar renders the status line showing file info, mode, and cursor position
+func drawStatusBar(filename string, row, col, totalRows int, modified bool, width int) string {
+	modIndic := ""
+	if modified {
+		modIndic = " ●"
+	}
+	status := fmt.Sprintf("  %s%s  •  Line %d/%d  •  Col %d  ", filename, modIndic, row+1, totalRows, col+1)
+	
+	if len(status) < width {
+		status += strings.Repeat(" ", width-len(status))
+	} else if len(status) > width {
+		status = status[:width]
+	}
+	// Gray background (47) with black text (30)
+	return "\x1b[47;30m" + status + "\x1b[0m"
+}
+
+// draw renders the entire editor UI: top bar, content with selection highlighting, bottom bar, status bar, and cursor
+// It handles scrolling (rowOffset) to show content within the terminal viewport
 func draw(buf [][]rune, cur Cursor, filename string, status string, sel *Selection) {
     width, height := getTerminalSize()
 
@@ -138,7 +158,7 @@ func draw(buf [][]rune, cur Cursor, filename string, status string, sel *Selecti
 
     // === STATUS BAR ===
     fmt.Printf("\x1b[%d;1H", height)
-    fmt.Print(status)
+    fmt.Print(drawStatusBar(filename, cur.Row, cur.Col, len(buf), false, width))
 
     // === CURSOR ===
     cursorScreenRow := (cur.Row - rowOffset) + 2

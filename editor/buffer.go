@@ -2,12 +2,13 @@ package editor
 
 import "strings"
 
-
+// Cursor represents the current cursor position in the editor (row and column)
 type Cursor struct {
 	Row int
 	Col int
 }
 
+// backspace deletes the character before the cursor, or merges lines if at column 0
 func backspace(buf *[][]rune, cur *Cursor) {
     // Case 1: at the start of a line → merge upward
     if cur.Col == 0 {
@@ -35,6 +36,7 @@ func backspace(buf *[][]rune, cur *Cursor) {
     cur.Col--
 }
 
+// toBuffer converts a string into a 2D slice of runes (one line per slice)
 func toBuffer(content string) [][]rune {
 	lines :=strings.Split(content, "\n")
 	buf := make([][]rune,len(lines))
@@ -45,6 +47,7 @@ func toBuffer(content string) [][]rune {
 }
 
 
+// removeIndentFromLine removes leading spaces (up to tabSize) from a single line
 func removeIndentFromLine(buf *[][]rune, row, tabSize int) int {
     line := (*buf)[row]
     if len(line) == 0 {
@@ -67,6 +70,7 @@ func removeIndentFromLine(buf *[][]rune, row, tabSize int) int {
 }
 
 
+// removeLineTab outdents the current line or all selected lines by tabSize spaces
 func removeLineTab(buf *[][]rune, cur *Cursor, sel *Selection) {
     tabSize := 4
 
@@ -107,6 +111,7 @@ func removeLineTab(buf *[][]rune, cur *Cursor, sel *Selection) {
 }
 
 
+// addLineTab indents the current line or all selected lines by tabSize spaces
 func addLineTab(buf *[][]rune, cur *Cursor, sel *Selection) {
     tabSize:=4
 
@@ -138,6 +143,7 @@ func addLineTab(buf *[][]rune, cur *Cursor, sel *Selection) {
 
 
 
+// insertNewline splits the current line at the cursor position and inserts a new line
 func insertNewline(buf *[][]rune, cur *Cursor) {
     row := cur.Row
     col := cur.Col
@@ -162,6 +168,7 @@ func insertNewline(buf *[][]rune, cur *Cursor) {
 }
 
 
+// insertRune inserts a single rune at the cursor position and advances the cursor
 func insertRune(buf *[][]rune, cur *Cursor, r rune) {
     row := cur.Row
     col := cur.Col
@@ -180,6 +187,7 @@ func insertRune(buf *[][]rune, cur *Cursor, r rune) {
 }
 
 
+// startSelectionIfNeeded initializes a selection at the current cursor position
 func startSelectionIfNeeded(sel *Selection, cur *Cursor) {
     if !sel.Active {
         sel.Active = true
@@ -189,16 +197,19 @@ func startSelectionIfNeeded(sel *Selection, cur *Cursor) {
 }
 
 
+// updateSelection extends the selection to include the current cursor position
 func updateSelection(sel *Selection, cur *Cursor) {
     sel.EndRow = cur.Row
     sel.EndCol = cur.Col
 }
 
+// clearSelection deactivates the current selection
 func clearSelection(sel *Selection) {
     sel.Active = false
 }
 
 
+// normalizeSelection returns the selection bounds in a consistent order (top-left to bottom-right)
 func normalizeSelection(sel *Selection) (sr, sc, er, ec int) {
     sr, sc = sel.StartRow, sel.StartCol
     er, ec = sel.EndRow, sel.EndCol
@@ -210,6 +221,7 @@ func normalizeSelection(sel *Selection) (sr, sc, er, ec int) {
     return
 }
 
+// clampSelection ensures selection boundaries are within valid buffer bounds
 func clampSelection(sel *Selection, buf [][]rune) {
     // clamp row bounds
     maxRow := len(buf) - 1
@@ -229,16 +241,42 @@ func clampSelection(sel *Selection, buf [][]rune) {
 }
 
 
+// ShowHelp displays a comprehensive popup overlay with all available keyboard shortcuts
 func ShowHelp() {
-    ShowPopup("Keyboard Shortcuts", []string{
-        "Ctrl-S   Save File",
-        "Ctrl-Q   Quit Editor",
-        "Ctrl-F   Find",
-        "Ctrl-R   Replace",
-        "Alt+Left   Word Left",
-        "Alt+Right  Word Right",
-        "Shift+Arrows Select",
-        "",
-        "This is the full editor help menu.",
-    })
+	ShowPopup("Quick Editor Keyboard Shortcuts", []string{
+		"Navigation:",
+		"  Arrow keys         Move cursor",
+		"  Ctrl+Arrows        Move & select",
+		"  Alt+Arrows         Fast navigation",
+		"",
+		"Editing:",
+		"  Tab                Insert 4 spaces",
+		"  Enter              New line",
+		"  Shift+Enter        Insert line below",
+		"  Ctrl+Shift+Enter   Insert line above",
+		"  Backspace          Delete character",
+		"",
+		"Undo/Redo:",
+		"  Ctrl+Z             Undo",
+		"  Ctrl+Y             Redo",
+		"",
+		"Selection & Search:",
+		"  Ctrl+A             Select all",
+		"  Ctrl+F             Find/Search",
+		"  Ctrl+R             Find & Replace",
+		"  Ctrl+C             Copy",
+		"  Ctrl+X             Cut",
+		"  Ctrl+V             Paste",
+		"",
+		"Advanced:",
+		"  Ctrl+D             Duplicate line",
+		"  Ctrl+/             Toggle comment",
+		"  Ctrl+[             Decrease indent",
+		"  Ctrl+]             Increase indent",
+		"",
+		"File:",
+		"  Ctrl+S             Save",
+		"  Ctrl+Q or Esc      Quit",
+		"  Ctrl+H             Show help",
+	})
 }

@@ -1,6 +1,8 @@
 package editor
 
 import (
+	"fmt"
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -18,7 +20,8 @@ func copyToClipboard(text string) {
     c := clipboard.New()
     err := c.CopyText(text)
     if err != nil {
-        panic(err)
+        fmt.Fprintf(os.Stderr, "Clipboard error: %v\n", err)
+        return
     }
 }
 
