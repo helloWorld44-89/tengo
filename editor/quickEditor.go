@@ -70,7 +70,9 @@ func newTab(filePath string) tabState {
 }
 
 // RunQuickEditor opens one or more files for quick editing.
-func RunQuickEditor(filePaths []string) {
+// updateCh, if non-nil, receives a single status message when a newer version
+// is available; it is displayed in the status bar on the next redraw.
+func RunQuickEditor(filePaths []string, updateCh <-chan string) {
 	if len(filePaths) == 0 {
 		return
 	}
@@ -144,6 +146,19 @@ func RunQuickEditor(filePaths []string) {
 				cWidth = 1
 			}
 			adjustScrollWordWrap(&t.rowOffset, t.cursor, t.buf, usableRows, cWidth)
+		}
+
+		// Show update notification in the status bar as soon as it arrives.
+		if updateCh != nil {
+			select {
+			case msg := <-updateCh:
+				for i := range tabs {
+					if tabs[i].status == "Editing" {
+						tabs[i].status = msg
+					}
+				}
+			default:
+			}
 		}
 
 		tabNames, tabMods := buildTabArgs()

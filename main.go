@@ -188,6 +188,19 @@ func main() {
 	filePaths = append(filePaths, flag.Args()...)
 
 	// Interactive editor mode.
+
+	// Check for updates in the background; notify via channel when found.
+	updateCh := make(chan string, 1)
+	go func() {
+		latest, err := fetchLatestTag()
+		if err != nil {
+			return
+		}
+		if strings.TrimPrefix(latest, "v") != strings.TrimPrefix(version, "v") {
+			updateCh <- fmt.Sprintf("Update available %s — run: tengo -update", latest)
+		}
+	}()
+
 	restore := editor.EnableRaw()
 	defer restore()
 
@@ -197,5 +210,5 @@ func main() {
 	fmt.Print("\x1b[?1049h")
 	defer fmt.Print("\x1b[?1049l")
 
-	editor.RunQuickEditor(filePaths)
+	editor.RunQuickEditor(filePaths, updateCh)
 }

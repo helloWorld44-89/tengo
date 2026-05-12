@@ -123,12 +123,27 @@ Focused improvements to the Quick Editor experience. Full IDE-style features
 
 ## Phase E: Polish & Release
 
-- [ ] Cross-platform binary builds (Linux x64, macOS arm64/x64, Windows x64) via GitHub Actions
-- [ ] Single-binary, zero-dependency install (static linking where possible)
+- [x] Cross-platform binary builds (Linux x64, macOS arm64/x64, Windows x64) via GitHub Actions
+- [x] Single-binary, zero-dependency install (static linking where possible)
 - [x] `tengo --version` and `tengo --help`
-- [ ] Man page / shell completion (bash, zsh, fish)
+- [x] Man page / shell completion (bash, zsh, fish)
 - [x] README with install instructions and usage examples
-- [ ] Release assets on GitHub Releases
+- [x] Release assets on GitHub Releases
+- [x] Install scripts (Linux/macOS bash, Windows PowerShell)
+- [x] `tengo -update` self-update command
+- [x] Update available notification in editor status bar
+
+## Phase F: Distribution
+
+- [ ] **Homebrew tap** — create a separate GitHub repo named `homebrew-tengo`, copy `Formula/tengo.rb` into it, push
+  - After each release: update `url` to new tag, run `curl -sL <tarball-url> | sha256sum`, update `sha256` in formula, push
+  - Users install with: `brew tap helloWorld44-89/tengo && brew install tengo`
+- [ ] **AUR (Arch Linux)** — write a `PKGBUILD` file, create an account at aur.archlinux.org, publish package
+  - Low effort, no approval process, covers all Arch/Manjaro users
+  - Users install with: `yay -S tengo`
+- [ ] **Snapcraft** — write `snap/snapcraft.yaml`, publish to snapcraft.io
+  - Works on any Linux distro with snapd (Ubuntu pre-installed)
+  - Users install with: `snap install tengo`
 
 ---
 
