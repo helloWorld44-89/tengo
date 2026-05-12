@@ -43,10 +43,15 @@ func replaceAll(str, old, new string) string {
 // RunQuickEditor opens a file for quick editing with keyboard-driven navigation
 // It supports undo/redo, find, selection, clipboard operations, and advanced shortcuts
 func RunQuickEditor(filePath string) {
+	modified := false
+	errorLine := 0
+
 	undoStack := make([][][]rune, 0)
 	redoStack := make([][][]rune, 0)
 	pushUndo := func(state [][]rune) {
-		redoStack = nil // clear redo stack on new action
+		modified = true
+		errorLine = 0
+		redoStack = nil
 		copyBuf := make([][]rune, len(state))
 		for i := range state {
 			copyBuf[i] = make([]rune, len(state[i]))
@@ -85,14 +90,16 @@ func RunQuickEditor(filePath string) {
 	buf := toBuffer(content)
 	status := "Editing"
 
-	for {
-		if !isPasting {
-			draw(buf, cursor, filePath, status, &sel)
-		}
+	rowOffset := 0
+	sel := Selection{}
+	inBracketedPaste := false
+	showLineNumbers := false
 
-		width, height := getTerminalSize()
+	for {
+		draw(buf, cursor, filePath, status, modified, rowOffset, &sel, showLineNumbers, errorLine)
+
+		_, height := getTerminalSize()
 		usableRows := height - 3
-		width = width - colOffset
 
 		key := readKey()
 
@@ -133,46 +140,56 @@ func RunQuickEditor(filePath string) {
 			}
 
 		case "ctrl-a":
+			if len(buf) == 0 {
+				break
+			}
 			sel.Active = true
 			sel.StartRow = 0
 			sel.StartCol = 0
-			sel.EndRow = len(buf)-1
+			sel.EndRow = len(buf) - 1
 			sel.EndCol = len(buf[len(buf)-1])
-			cursor.Row = len(buf)-1
+			cursor.Row = len(buf) - 1
 			cursor.Col = len(buf[len(buf)-1])
 
 		case "ctrl-f":
-			fmt.Print("Find: ")
-			var searchTerm string
-			fmt.Scanln(&searchTerm)
-			for row, line := range buf {
-				if idx := indexOf(line, searchTerm); idx != -1 {
-					cursor.Row = row
-					cursor.Col = idx
-					break
+			if term, ok := readPrompt("Find: "); ok && term != "" {
+				for row, line := range buf {
+					if idx := indexOf(line, term); idx != -1 {
+						cursor.Row = row
+						cursor.Col = idx
+						break
+					}
 				}
 			}
 
 		case "ctrl-r":
-			fmt.Print("Find: ")
-			var searchTerm string
-			fmt.Scanln(&searchTerm)
-			fmt.Print("Replace with: ")
-			var replaceTerm string
-			fmt.Scanln(&replaceTerm)
-			
+			searchTerm, ok := readPrompt("Find: ")
+			if !ok || searchTerm == "" {
+				break
+			}
+			replaceTerm, ok := readPrompt("Replace with: ")
+			if !ok {
+				break
+			}
+
 			pushUndo(buf)
 			replacementCount := 0
 			for row := range buf {
-				line := buf[row]
-				str := string(line)
+				str := string(buf[row])
 				if findIndex(str, searchTerm) != -1 {
-					newStr := replaceAll(str, searchTerm, replaceTerm)
-					buf[row] = []rune(newStr)
+					buf[row] = []rune(replaceAll(str, searchTerm, replaceTerm))
 					replacementCount++
 				}
 			}
 			status = fmt.Sprintf("Replaced %d occurrences", replacementCount)
+
+			// Clamp cursor — replacements may have shortened the current line.
+			if cursor.Row >= len(buf) {
+				cursor.Row = len(buf) - 1
+			}
+			if cursor.Row >= 0 && cursor.Col > len(buf[cursor.Row]) {
+				cursor.Col = len(buf[cursor.Row])
+			}
 
 		case "ctrl-y":
 			if next, ok := popRedo(); ok {
@@ -186,7 +203,19 @@ func RunQuickEditor(filePath string) {
 
 
 		case "ctrl-q", "esc":
+			if modified {
+				answer, ok := readPrompt("Unsaved changes — quit? (y/n): ")
+				if !ok || (answer != "y" && answer != "Y") {
+					break
+				}
+			}
 			return
+
+		case "home":
+			cursor.Col = 0
+
+		case "end":
+			cursor.Col = len(buf[cursor.Row])
 
 		case "up", "down", "left", "right":
 			sel.Active = false
@@ -211,7 +240,60 @@ func RunQuickEditor(filePath string) {
 			backspace(&buf, &cursor)
 
 		case "ctrl-s":
-			file.SaveFile(filePath, buf)
+			if err := file.SaveFile(filePath, buf); err != nil {
+				status = fmt.Sprintf("Save failed: %v", err)
+			} else {
+				modified = false
+				result := ValidateBuffer(filePath, buf)
+				if !result.Valid {
+					status = "Saved — " + result.Message
+					errorLine = result.Line
+				} else {
+					status = "Saved"
+					errorLine = 0
+				}
+			}
+
+		case "ctrl-e":
+			result := ValidateBuffer(filePath, buf)
+			if result.Valid {
+				status = "✓ " + result.Message
+				errorLine = 0
+			} else {
+				status = result.Message
+				errorLine = result.Line
+				if result.Line > 0 && result.Line <= len(buf) {
+					cursor.Row = result.Line - 1
+					cursor.Col = 0
+				}
+			}
+
+		case "ctrl-t":
+			newBuf, err := FormatBuffer(filePath, buf)
+			if err != nil {
+				status = "Format failed: " + err.Error()
+			} else {
+				pushUndo(buf)
+				buf = newBuf
+				status = "Formatted"
+				errorLine = 0
+				if cursor.Row >= len(buf) {
+					cursor.Row = len(buf) - 1
+				}
+				if cursor.Col > len(buf[cursor.Row]) {
+					cursor.Col = len(buf[cursor.Row])
+				}
+			}
+
+		case "ctrl-g":
+			if input, ok := readPrompt("Go to line: "); ok && input != "" {
+				n := 0
+				fmt.Sscanf(input, "%d", &n)
+				if n >= 1 && n <= len(buf) {
+					cursor.Row = n - 1
+					cursor.Col = 0
+				}
+			}
 
 		case "ctrl-[":
 			removeLineTab(&buf, &cursor, &sel)
@@ -223,28 +305,20 @@ func RunQuickEditor(filePath string) {
 		case "ctrl-h":
 			ShowHelp()
 
+		case "ctrl-n":
+			showLineNumbers = !showLineNumbers
 
-		// -------- CTRL + ARROWS --------
+
+		// -------- CTRL + ARROWS (word-level movement + selection) --------
 		case "ctrl-left":
 			startSelectionIfNeeded(&sel, &cursor)
-			if cursor.Col > 0 {
-				cursor.Col--
-			} else if cursor.Row > 0 {
-				cursor.Row--
-				cursor.Col = len(buf[cursor.Row])
-			}
+			moveWordLeft(&cursor, buf)
 			updateSelection(&sel, &cursor)
 			clampSelection(&sel, buf)
 
 		case "ctrl-right":
 			startSelectionIfNeeded(&sel, &cursor)
-			lineLen := len(buf[cursor.Row])
-			if cursor.Col < lineLen {
-				cursor.Col++
-			} else if cursor.Row < len(buf)-1 {
-				cursor.Row++
-				cursor.Col = 0
-			}
+			moveWordRight(&cursor, buf)
 			updateSelection(&sel, &cursor)
 			clampSelection(&sel, buf)
 

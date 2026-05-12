@@ -8,6 +8,18 @@ type Cursor struct {
 	Col int
 }
 
+// bufToString converts a rune buffer back to a newline-delimited string.
+func bufToString(buf [][]rune) string {
+	var b strings.Builder
+	for i, line := range buf {
+		b.WriteString(string(line))
+		if i < len(buf)-1 {
+			b.WriteByte('\n')
+		}
+	}
+	return b.String()
+}
+
 // backspace deletes the character before the cursor, or merges lines if at column 0
 func backspace(buf *[][]rune, cur *Cursor) {
     // Case 1: at the start of a line → merge upward
@@ -238,45 +250,4 @@ func clampSelection(sel *Selection, buf [][]rune) {
     lineLenEnd := len(buf[sel.EndRow])
     if sel.EndCol < 0 { sel.EndCol = 0 }
     if sel.EndCol > lineLenEnd { sel.EndCol = lineLenEnd }
-}
-
-
-// ShowHelp displays a comprehensive popup overlay with all available keyboard shortcuts
-func ShowHelp() {
-	ShowPopup("Quick Editor Keyboard Shortcuts", []string{
-		"Navigation:",
-		"  Arrow keys         Move cursor",
-		"  Ctrl+Arrows        Move & select",
-		"  Alt+Arrows         Fast navigation",
-		"",
-		"Editing:",
-		"  Tab                Insert 4 spaces",
-		"  Enter              New line",
-		"  Shift+Enter        Insert line below",
-		"  Ctrl+Shift+Enter   Insert line above",
-		"  Backspace          Delete character",
-		"",
-		"Undo/Redo:",
-		"  Ctrl+Z             Undo",
-		"  Ctrl+Y             Redo",
-		"",
-		"Selection & Search:",
-		"  Ctrl+A             Select all",
-		"  Ctrl+F             Find/Search",
-		"  Ctrl+R             Find & Replace",
-		"  Ctrl+C             Copy",
-		"  Ctrl+X             Cut",
-		"  Ctrl+V             Paste",
-		"",
-		"Advanced:",
-		"  Ctrl+D             Duplicate line",
-		"  Ctrl+/             Toggle comment",
-		"  Ctrl+[             Decrease indent",
-		"  Ctrl+]             Increase indent",
-		"",
-		"File:",
-		"  Ctrl+S             Save",
-		"  Ctrl+Q or Esc      Quit",
-		"  Ctrl+H             Show help",
-	})
 }

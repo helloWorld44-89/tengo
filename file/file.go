@@ -3,6 +3,7 @@ package file
 import (
 	"bufio"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -26,15 +27,44 @@ func OpenFile(path string) (string, error) {
 
 }
 
+// SaveBytes atomically writes data to path, preserving original file permissions.
+func SaveBytes(path string, data []byte) error {
+	perm := os.FileMode(0644)
+	if info, err := os.Stat(path); err == nil {
+		perm = info.Mode()
+	}
+
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".tengo-save-*")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		os.Remove(tmpName)
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpName)
+		return err
+	}
+	if err := os.Chmod(tmpName, perm); err != nil {
+		os.Remove(tmpName)
+		return err
+	}
+
+	return os.Rename(tmpName, path)
+}
+
+// SaveFile converts a rune buffer to bytes and atomically writes it to path.
 func SaveFile(path string, buf [][]rune) error {
 	var b strings.Builder
-
 	for i, line := range buf {
 		b.WriteString(string(line))
 		if i < len(buf)-1 {
 			b.WriteByte('\n')
 		}
 	}
-
-	return os.WriteFile(path, []byte(b.String()), 0644)
+	return SaveBytes(path, []byte(b.String()))
 }

@@ -11,17 +11,16 @@ import (
 )
 
 var internalClipboard string
-var isPasting bool
-var inBracketedPaste bool
-var pasteBuffer strings.Builder
 
 // --- Copy string to system clipboard if possible ---
 func copyToClipboard(text string) {
+    // Always store internally so paste works within the same session
+    // even when the system clipboard is unavailable.
+    internalClipboard = text
+
     c := clipboard.New()
-    err := c.CopyText(text)
-    if err != nil {
+    if err := c.CopyText(text); err != nil {
         fmt.Fprintf(os.Stderr, "Clipboard error: %v\n", err)
-        return
     }
 }
 
@@ -45,6 +44,7 @@ func pasteFromClipboard() string {
         if err == nil {
             return string(out)
         }
+        fmt.Fprintf(os.Stderr, "paste: xclip/xsel not found, using internal clipboard\r\n")
 
     
     case "windows":
@@ -146,10 +146,7 @@ func deleteSelection(buf *[][]rune, cur *Cursor, sel *Selection) {
 }
 
 func pasteText(buf *[][]rune, cur *Cursor) {
-    text := pasteFromClipboard()    
-    // text = strings.ReplaceAll(text, "\r\n", "\n")
-    // text = strings.ReplaceAll(text, "\r", "\n")
-    isPasting = true
+    text := pasteFromClipboard()
     text = strings.TrimRight(text, "\n\r")
     for _, ch := range text {
         switch ch {
@@ -161,5 +158,4 @@ func pasteText(buf *[][]rune, cur *Cursor) {
             insertRune(buf, cur, ch)
         }
     }
-    isPasting = false
 }

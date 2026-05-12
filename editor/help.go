@@ -132,3 +132,46 @@ func drawPopupWindow(x, y, w, h int, title string, lines []string) {
 func MoveCursor(r, c int) {
     fmt.Printf("\x1b[%d;%dH", r, c)
 }
+
+// ShowHelp displays a popup overlay listing all keyboard shortcuts.
+func ShowHelp() {
+    ShowPopup("Quick Editor Keyboard Shortcuts", []string{
+        "Navigation:",
+        "  Arrow keys         Move cursor",
+        "  Home / End         Start / end of line",
+        "  Ctrl+Arrows        Word jump + select",
+        "  Alt+Arrows         Fast navigation (4 steps)",
+        "",
+        "Editing:",
+        "  Tab                Insert 4 spaces",
+        "  Enter              New line",
+        "  Shift+Enter        Insert line below",
+        "  Ctrl+Shift+Enter   Insert line above",
+        "  Backspace          Delete character",
+        "  Ctrl+D             Duplicate line",
+        "  Ctrl+/             Toggle comment",
+        "  Ctrl+[             Decrease indent",
+        "  Ctrl+]             Increase indent",
+        "",
+        "Undo/Redo:",
+        "  Ctrl+Z             Undo",
+        "  Ctrl+Y             Redo",
+        "",
+        "Selection & Search:",
+        "  Ctrl+A             Select all",
+        "  Ctrl+F             Find",
+        "  Ctrl+R             Find & Replace",
+        "  Ctrl+C             Copy",
+        "  Ctrl+X             Cut",
+        "  Ctrl+V             Paste",
+        "",
+        "File & Validation:",
+        "  Ctrl+S             Save (auto-validates)",
+        "  Ctrl+E             Validate syntax",
+        "  Ctrl+T             Format / pretty-print",
+        "  Ctrl+G             Go to line",
+        "  Ctrl+N             Toggle line numbers",
+        "  Ctrl+Q or Esc      Quit",
+        "  Ctrl+H             Show this help",
+    })
+}

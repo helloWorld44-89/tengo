@@ -2,12 +2,31 @@ package editor
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 )
 
-// rowOffset and colOffset track the viewport position within the file
-var rowOffset int
-var colOffset int
+// detectFileType returns a short label for the file type based on extension.
+func detectFileType(filename string) string {
+	switch strings.ToLower(filepath.Ext(filename)) {
+	case ".yaml", ".yml":
+		return "YAML"
+	case ".json":
+		return "JSON"
+	case ".toml":
+		return "TOML"
+	case ".ini", ".cfg":
+		return "INI"
+	case ".xml":
+		return "XML"
+	case ".go":
+		return "Go"
+	case ".md":
+		return "Markdown"
+	default:
+		return "TXT"
+	}
+}
 
 // drawTopBar renders the top header bar showing the current file name and editor title
 func drawTopBar(filename string, width int) string {
@@ -34,123 +53,169 @@ func drawBottomBar(width int) string {
 	return "\x1b[46;30m" + info + "\x1b[0m"
 }
 
-// drawStatusBar renders the status line showing file info, mode, and cursor position
-func drawStatusBar(filename string, row, col, totalRows int, modified bool, width int) string {
+// drawStatusBar renders the status line showing file info, cursor position, file type, and transient messages.
+func drawStatusBar(filename string, row, col, totalRows int, modified bool, msg, fileType, selInfo string, width int) string {
 	modIndic := ""
 	if modified {
 		modIndic = " ●"
 	}
-	status := fmt.Sprintf("  %s%s  •  Line %d/%d  •  Col %d  ", filename, modIndic, row+1, totalRows, col+1)
-	
-	if len(status) < width {
-		status += strings.Repeat(" ", width-len(status))
-	} else if len(status) > width {
-		status = status[:width]
+	base := filepath.Base(filename)
+	bar := fmt.Sprintf("  %s%s  •  Line %d/%d  •  Col %d  •  %s  ", base, modIndic, row+1, totalRows, col+1, fileType)
+	if selInfo != "" {
+		bar += "| " + selInfo + "  "
+	} else if msg != "" && msg != "Editing" {
+		bar += "| " + msg + "  "
 	}
-	// Gray background (47) with black text (30)
-	return "\x1b[47;30m" + status + "\x1b[0m"
+	if len(bar) < width {
+		bar += strings.Repeat(" ", width-len(bar))
+	} else if len(bar) > width {
+		bar = bar[:width]
+	}
+	return "\x1b[47;30m" + bar + "\x1b[0m"
 }
 
-// draw renders the entire editor UI: top bar, content with selection highlighting, bottom bar, status bar, and cursor
-// It handles scrolling (rowOffset) to show content within the terminal viewport
-func draw(buf [][]rune, cur Cursor, filename string, status string, sel *Selection) {
+// draw renders the entire editor UI: top bar, content with selection highlighting, status bar, and cursor.
+// errorLine is the 1-based line number to mark with a red ! in the gutter (0 = no error).
+func draw(buf [][]rune, cur Cursor, filename string, status string, modified bool, rowOffset int, sel *Selection, showLineNumbers bool, errorLine int) {
     width, height := getTerminalSize()
 
-    // clears window and scrollback before opening
     fmt.Print("\x1b[3J")
     fmt.Print("\x1b[2J")
     fmt.Print("\x1b[H")
 
     // === TOP BAR ===
-    fmt.Println(drawTopBar(filename, width))
+    // Use \r\n throughout: MakeRaw clears OPOST/ONLCR so bare \n no longer
+    // returns the cursor to column 1, causing a staircase.
+    fmt.Printf("%s\r\n", drawTopBar(filename, width))
 
     usableRows := height - 3 // top bar + bottom bar + status line
 
-    // STEP 2: Normalize selection ONCE here
+    // Gutter layout:
+    //   errColW  — 1 char for the "!" marker (shown whenever errorLine > 0)
+    //   lineNumW — right-aligned number + 1 space (shown when showLineNumbers)
+    errColW := 0
+    if errorLine > 0 {
+        errColW = 1
+    }
+    lineNumW := 0
+    if showLineNumbers && len(buf) > 0 {
+        lineNumW = len(fmt.Sprintf("%d", len(buf))) + 1
+    }
+    gutterW := errColW + lineNumW
+
+    // File type and selection info for status bar.
+    fileType := detectFileType(filename)
+    selInfo := ""
+    if sel.Active {
+        sr2, sc2, er2, ec2 := normalizeSelection(sel)
+        numLines := er2 - sr2 + 1
+        chars := 0
+        if sr2 == er2 {
+            chars = ec2 - sc2
+        } else {
+            if sr2 < len(buf) {
+                chars = len(buf[sr2]) - sc2
+            }
+            for r := sr2 + 1; r < er2; r++ {
+                if r < len(buf) {
+                    chars += len(buf[r]) + 1
+                }
+            }
+            if er2 < len(buf) {
+                chars += ec2
+            }
+        }
+        selInfo = fmt.Sprintf("%dL · %dC selected", numLines, chars)
+    }
+
+    // Normalize selection once per frame for content rendering.
     var sr, sc, er, ec int
     if sel.Active {
         sr, sc, er, ec = normalizeSelection(sel)
     }
-	
-
 
     // === FILE CONTENT ===
+    for screenRow := 0; screenRow < usableRows; screenRow++ {
+        fileRow := rowOffset + screenRow
+        isCurLine := (fileRow == cur.Row)
+        isErrLine := (errorLine > 0 && fileRow+1 == errorLine)
 
-	
-	for screenRow := 0; screenRow < usableRows; screenRow++ {
-		fileRow := rowOffset + screenRow
+        if fileRow >= len(buf) {
+            if gutterW > 0 {
+                fmt.Print(strings.Repeat(" ", gutterW))
+            }
+            if isCurLine {
+                fmt.Print("\x1b[48;5;236m\x1b[K\x1b[0m")
+            }
+            fmt.Print("\r\n")
+            continue
+        }
 
-		if fileRow >= len(buf) {
-			fmt.Print("\n")
-			continue
-		}
+        line := buf[fileRow]
+        lineLen := len(line)
 
-		line := buf[fileRow]
-		
-		lineLen := len(line)
-		if sc < 0 { sc = 0 }
-		if ec < 0 { ec = 0 }
-		if sc > lineLen { sc = lineLen }
-		if ec > lineLen { ec = lineLen }
+        // Error marker column.
+        if errColW > 0 {
+            if isErrLine {
+                fmt.Print("\x1b[31;1m!\x1b[0m")
+            } else {
+                fmt.Print(" ")
+            }
+        }
+        // Line number column.
+        if lineNumW > 0 {
+            if isErrLine {
+                fmt.Printf("\x1b[31m%*d \x1b[0m", lineNumW-1, fileRow+1)
+            } else {
+                fmt.Printf("\x1b[90m%*d \x1b[0m", lineNumW-1, fileRow+1)
+            }
+        }
 
-		if !sel.Active {
-			fmt.Println(string(line))
-			continue
-		}
+        // Current line background.
+        if isCurLine {
+            fmt.Print("\x1b[48;5;236m")
+        }
 
-		// Use normalized selection only
-		if sel.Active {
-			sr, sc, er, ec = normalizeSelection(sel)
+        // Render content with optional selection highlighting.
+        if !sel.Active || fileRow < sr || fileRow > er {
+            fmt.Print(string(line))
+            if isCurLine {
+                fmt.Print("\x1b[K")
+            }
+        } else {
+            var hlStart, hlEnd int
+            switch {
+            case sr == er:
+                hlStart, hlEnd = sc, ec
+            case fileRow == sr:
+                hlStart, hlEnd = sc, lineLen
+            case fileRow == er:
+                hlStart, hlEnd = 0, ec
+            default:
+                hlStart, hlEnd = 0, lineLen
+            }
+            if hlStart < 0 {
+                hlStart = 0
+            }
+            if hlEnd > lineLen {
+                hlEnd = lineLen
+            }
+            if hlStart > hlEnd {
+                hlStart = hlEnd
+            }
 
-			if fileRow< sr || fileRow> er {
-				fmt.Println(string(line))
-				continue
-			}
+            fmt.Print(string(line[:hlStart]))
+            fmt.Print("\x1b[7m")
+            fmt.Print(string(line[hlStart:hlEnd]))
+            fmt.Print("\x1b[27m")
+            fmt.Print(string(line[hlEnd:]))
+            if isCurLine {
+                fmt.Print("\x1b[K")
+            }
+        }
 
-			// First or last row
-			if fileRow== sr || fileRow== er {
-				lineLen := len(line)
-
-				if sc < 0 { sc = 0 }
-				if ec < 0 { ec = 0 }
-				if sc > lineLen { sc = lineLen }
-				if ec > lineLen { ec = lineLen }
-
-				left := line[:sc]
-				mid  := line[sc:ec]
-				right := line[ec:]
-				fmt.Print(string(left))
-				fmt.Print("\x1b[7m", string(mid), "\x1b[0m")
-				fmt.Print(string(right))
-				fmt.Print("\n")
-				continue
-			}
-
-			// Middle rows
-			fmt.Print("\x1b[7m", string(line), "\x1b[0m\n")
-			continue
-		}
-
-		// NO SELECTION → JUST PRINT
-		fmt.Println(string(line))
-
-
-		// Middle lines (full highlight)
-		if fileRow> sr && fileRow< er {
-			fmt.Print("\x1b[7m", string(line), "\x1b[0m\n")
-			continue
-		}
-
-		// First or last selected line (column highlight)
-		left  := line[:sc]
-		mid   := line[sc:ec]
-		right := line[ec:]
-
-		fmt.Print(string(left))
-		fmt.Print("\x1b[7m", string(mid), "\x1b[0m")
-		fmt.Print(string(right))
-		fmt.Print("\n")
-	}
+        fmt.Print("\x1b[0m\r\n")
+    }
 
     // === BOTTOM BAR ===
     fmt.Printf("\x1b[%d;1H", height-1)
@@ -158,11 +223,11 @@ func draw(buf [][]rune, cur Cursor, filename string, status string, sel *Selecti
 
     // === STATUS BAR ===
     fmt.Printf("\x1b[%d;1H", height)
-    fmt.Print(drawStatusBar(filename, cur.Row, cur.Col, len(buf), false, width))
+    fmt.Print(drawStatusBar(filename, cur.Row, cur.Col, len(buf), modified, status, fileType, selInfo, width))
 
-    // === CURSOR ===
+    // === CURSOR (offset by gutter) ===
     cursorScreenRow := (cur.Row - rowOffset) + 2
-	fmt.Printf("\x1b[%d;%dH", cursorScreenRow, cur.Col+1)
+    fmt.Printf("\x1b[%d;%dH", cursorScreenRow, cur.Col+gutterW+1)
 }
 //==========This is for the FULL Editor, not the quick editor.===========
 func fulldrawTopBar(filename string, width int) string {

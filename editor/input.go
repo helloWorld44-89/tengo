@@ -1,9 +1,10 @@
 package editor
 
 import (
+	"fmt"
 	"os"
 	"strings"
-) 
+)
 
 
 
@@ -14,10 +15,6 @@ type Selection struct {
     EndRow    int
     EndCol    int
 }
-
-
-var sel Selection
-
 
 
 func readEscSequence(first byte) string {
@@ -59,14 +56,23 @@ func readKey() string {
     // 1. Single-byte controls
     // ============================================
     switch b {
+    case 1:  return "ctrl-a"
     case 3:  return "ctrl-c"
+    case 4:  return "ctrl-d"
+    case 6:  return "ctrl-f"
+    case 8:  return "ctrl-h"
+    case 9:  return "tab"
+    case 14: return "ctrl-n"
+    case 17: return "ctrl-q"
+    case 18: return "ctrl-r"
+    case 19: return "ctrl-s"
     case 22: return "ctrl-v"
     case 24: return "ctrl-x"
-    case 19: return "ctrl-s"
-    case 17: return "ctrl-q"
-    case 9:  return "tab"
-    case 8:  return "ctrl-h"
-    case 127:return "backspace"
+    case 25: return "ctrl-y"
+    case 26: return "ctrl-z"
+    case 29: return "ctrl-]"
+    case 31: return "ctrl-/"
+    case 127: return "backspace"
     case '\r': return "enter"
     }
 
@@ -276,5 +282,99 @@ func moveCursor(c *Cursor, key string, buf [][]rune, rowOffset *int, screenRows 
     }
 }
 
+func isWordChar(r rune) bool {
+    return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_'
+}
 
+// moveWordRight jumps to the start of the next word on the current line,
+// or to the start of the next line if already at or past the end.
+func moveWordRight(cur *Cursor, buf [][]rune) {
+    line := buf[cur.Row]
+    col := cur.Col
+
+    if col >= len(line) {
+        if cur.Row < len(buf)-1 {
+            cur.Row++
+            cur.Col = 0
+        }
+        return
+    }
+
+    // Skip the current run of word characters.
+    for col < len(line) && isWordChar(line[col]) {
+        col++
+    }
+    // Skip any trailing non-word characters (punctuation, spaces).
+    for col < len(line) && !isWordChar(line[col]) {
+        col++
+    }
+    cur.Col = col
+}
+
+// moveWordLeft jumps to the start of the current or previous word.
+func moveWordLeft(cur *Cursor, buf [][]rune) {
+    if cur.Col == 0 {
+        if cur.Row > 0 {
+            cur.Row--
+            cur.Col = len(buf[cur.Row])
+        }
+        return
+    }
+
+    line := buf[cur.Row]
+    col := cur.Col - 1
+
+    // Skip non-word characters to the left (spaces, punctuation).
+    for col > 0 && !isWordChar(line[col]) {
+        col--
+    }
+    // Skip word characters to the left to reach the start of the word.
+    for col > 0 && isWordChar(line[col-1]) {
+        col--
+    }
+    cur.Col = col
+}
+
+// readPrompt renders a prompt in the status bar and collects typed input via
+// readKey so it works correctly in raw terminal mode.
+// Returns (input, true) on Enter, or ("", false) if the user pressed Esc/ctrl-q.
+func readPrompt(prompt string) (string, bool) {
+    width, height := getTerminalSize()
+    var result []rune
+
+    for {
+        // Render prompt + typed text in the bottom status bar row.
+        fmt.Printf("\x1b[%d;1H", height)
+        display := prompt + string(result)
+        if len(display) < width {
+            display += strings.Repeat(" ", width-len(display))
+        } else if len(display) > width {
+            display = display[:width]
+        }
+        fmt.Printf("\x1b[47;30m%s\x1b[0m", display)
+
+        // Position the cursor right after the typed text.
+        col := len(prompt) + len(result) + 1
+        if col > width {
+            col = width
+        }
+        fmt.Printf("\x1b[%d;%dH", height, col)
+
+        key := readKey()
+        switch key {
+        case "enter":
+            return string(result), true
+        case "esc", "ctrl-q":
+            return "", false
+        case "backspace":
+            if len(result) > 0 {
+                result = result[:len(result)-1]
+            }
+        default:
+            if len(key) == 1 && key[0] >= 32 {
+                result = append(result, rune(key[0]))
+            }
+        }
+    }
+}
 
