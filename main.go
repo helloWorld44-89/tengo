@@ -8,7 +8,7 @@ import (
 	"tengo/editor"
 )
 
-const version = "0.1.0"
+var version = "0.1.0"
 
 func printSplash() {
 	fmt.Print(`
