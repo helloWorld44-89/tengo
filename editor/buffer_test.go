@@ -462,3 +462,35 @@ func TestGetSelectedTextMultiLine(t *testing.T) {
 		t.Errorf("expected 'lo\\nworld\\nfoo', got '%s'", got)
 	}
 }
+
+// ── visualCol ─────────────────────────────────────────────────────────────────
+
+func TestVisualColNoTabs(t *testing.T) {
+	line := []rune("hello")
+	if got := visualCol(line, 3, 4); got != 3 {
+		t.Errorf("expected 3, got %d", got)
+	}
+}
+
+func TestVisualColWithTab(t *testing.T) {
+	line := []rune("\thello")
+	// tab at col 0 advances to next stop at 4
+	if got := visualCol(line, 1, 4); got != 4 {
+		t.Errorf("expected 4, got %d", got)
+	}
+}
+
+func TestVisualColMultipleTabs(t *testing.T) {
+	line := []rune("\t\tx")
+	// first tab → 4, second tab → 8, then 'x' at visual 8
+	if got := visualCol(line, 2, 4); got != 8 {
+		t.Errorf("expected 8, got %d", got)
+	}
+}
+
+func TestVisualColAtZero(t *testing.T) {
+	line := []rune("abc")
+	if got := visualCol(line, 0, 4); got != 0 {
+		t.Errorf("expected 0, got %d", got)
+	}
+}

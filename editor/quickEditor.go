@@ -1,9 +1,9 @@
 package editor
 
 import (
-    "fmt"
-    "os"
-    "tengo/file"
+	"fmt"
+	"os"
+	"tengo/file"
 )
 
 // indexOf searches for a substring in a line of runes
@@ -11,8 +11,7 @@ func indexOf(line []rune, term string) int {
 	if len(term) == 0 {
 		return -1
 	}
-	str := string(line)
-	return findIndex(str, term)
+	return findIndex(string(line), term)
 }
 
 // findIndex returns the index of substr in s, or -1 if not found
@@ -26,7 +25,7 @@ func findIndex(s, substr string) int {
 }
 
 // replaceAll replaces all occurrences of old with new in str
-func replaceAll(str, old, new string) string {
+func replaceAll(str, old, newStr string) string {
 	result := ""
 	for len(str) > 0 {
 		idx := findIndex(str, old)
@@ -34,129 +33,305 @@ func replaceAll(str, old, new string) string {
 			result += str
 			break
 		}
-		result += str[:idx] + new
+		result += str[:idx] + newStr
 		str = str[idx+len(old):]
 	}
 	return result
 }
 
-// RunQuickEditor opens a file for quick editing with keyboard-driven navigation
-// It supports undo/redo, find, selection, clipboard operations, and advanced shortcuts
-func RunQuickEditor(filePath string) {
-	modified := false
-	errorLine := 0
+// tabState holds the complete editing state for a single open file.
+type tabState struct {
+	filePath  string
+	buf       [][]rune
+	cursor    Cursor
+	modified  bool
+	errorLine int
+	rowOffset int
+	sel       Selection
+	status    string
+	undoStack [][][]rune
+	redoStack [][][]rune
+}
 
-	undoStack := make([][][]rune, 0)
-	redoStack := make([][][]rune, 0)
-	pushUndo := func(state [][]rune) {
-		modified = true
-		errorLine = 0
-		redoStack = nil
-		copyBuf := make([][]rune, len(state))
-		for i := range state {
-			copyBuf[i] = make([]rune, len(state[i]))
-			copy(copyBuf[i], state[i])
-		}
-		undoStack = append(undoStack, copyBuf)
-	}
-	popUndo := func() ([][]rune, bool) {
-		// move to redo stack
-		if len(undoStack) == 0 {
-			return nil, false
-		}
-		prev := undoStack[len(undoStack)-1]
-		undoStack = undoStack[:len(undoStack)-1]
-		redoStack = append(redoStack, prev)
-		return prev, true
-	}
-	popRedo := func() ([][]rune, bool) {
-		if len(redoStack) == 0 {
-			return nil, false
-		}
-		next := redoStack[len(redoStack)-1]
-		redoStack = redoStack[:len(redoStack)-1]
-		undoStack = append(undoStack, next)
-		return next, true
-	}
-
-	cursor := Cursor{0, 0}
-
+func newTab(filePath string) tabState {
 	content, err := file.OpenFile(filePath)
 	if err != nil {
-        fmt.Fprintf(os.Stderr, "Failed to open file: %v\n", err)
-        return
+		// New or unreadable file — open with empty buffer.
+		if !os.IsNotExist(err) {
+			fmt.Fprintf(os.Stderr, "Warning: %v\r\n", err)
+		}
+		content = ""
+	}
+	return tabState{
+		filePath: filePath,
+		buf:      toBuffer(content),
+		status:   "Editing",
+	}
+}
+
+// RunQuickEditor opens one or more files for quick editing.
+func RunQuickEditor(filePaths []string) {
+	if len(filePaths) == 0 {
+		return
 	}
 
-	buf := toBuffer(content)
-	status := "Editing"
+	tabs := make([]tabState, len(filePaths))
+	for i, fp := range filePaths {
+		tabs[i] = newTab(fp)
+	}
 
-	rowOffset := 0
-	sel := Selection{}
-	inBracketedPaste := false
+	activeTab := 0
 	showLineNumbers := false
+	wordWrap := false
+	inBracketedPaste := false
+
+	// buildDrawArgs assembles the slice-level args draw() needs for the tab bar.
+	buildTabArgs := func() ([]string, []bool) {
+		names := make([]string, len(tabs))
+		mods := make([]bool, len(tabs))
+		for i, t := range tabs {
+			names[i] = t.filePath
+			mods[i] = t.modified
+		}
+		return names, mods
+	}
 
 	for {
-		draw(buf, cursor, filePath, status, modified, rowOffset, &sel, showLineNumbers, errorLine)
+		t := &tabs[activeTab]
 
-		_, height := getTerminalSize()
+		// Closures that operate on the active tab's undo stacks.
+		pushUndo := func(state [][]rune) {
+			t.modified = true
+			t.errorLine = 0
+			t.redoStack = nil
+			cp := make([][]rune, len(state))
+			for i := range state {
+				cp[i] = make([]rune, len(state[i]))
+				copy(cp[i], state[i])
+			}
+			t.undoStack = append(t.undoStack, cp)
+		}
+		popUndo := func() ([][]rune, bool) {
+			if len(t.undoStack) == 0 {
+				return nil, false
+			}
+			prev := t.undoStack[len(t.undoStack)-1]
+			t.undoStack = t.undoStack[:len(t.undoStack)-1]
+			t.redoStack = append(t.redoStack, prev)
+			return prev, true
+		}
+		popRedo := func() ([][]rune, bool) {
+			if len(t.redoStack) == 0 {
+				return nil, false
+			}
+			next := t.redoStack[len(t.redoStack)-1]
+			t.redoStack = t.redoStack[:len(t.redoStack)-1]
+			t.undoStack = append(t.undoStack, next)
+			return next, true
+		}
+
+		width, height := getTerminalSize()
 		usableRows := height - 3
+		if len(tabs) > 1 {
+			usableRows--
+		}
+
+		// Ensure cursor is visible in word-wrap mode before drawing.
+		if wordWrap {
+			gW := gutterWidth(t.buf, showLineNumbers, t.errorLine)
+			cWidth := width - gW
+			if cWidth < 1 {
+				cWidth = 1
+			}
+			adjustScrollWordWrap(&t.rowOffset, t.cursor, t.buf, usableRows, cWidth)
+		}
+
+		tabNames, tabMods := buildTabArgs()
+		draw(t.buf, t.cursor, t.filePath, t.status, t.modified, t.rowOffset, &t.sel, showLineNumbers, t.errorLine, tabNames, tabMods, activeTab, wordWrap)
 
 		key := readKey()
 
 		switch key {
+
+		// ── Tab switching ──────────────────────────────────────────────────
+		case "ctrl-w":
+			if len(tabs) > 1 {
+				activeTab = (activeTab + 1) % len(tabs)
+			}
+
+		case "alt-1", "alt-2", "alt-3", "alt-4", "alt-5",
+			"alt-6", "alt-7", "alt-8", "alt-9":
+			n := int(key[4]-'0') - 1
+			if n >= 0 && n < len(tabs) {
+				activeTab = n
+			}
+
+		// ── Quit ───────────────────────────────────────────────────────────
+		case "ctrl-q", "esc":
+			anyModified := false
+			for _, tab := range tabs {
+				if tab.modified {
+					anyModified = true
+					break
+				}
+			}
+			if anyModified {
+				prompt := "Unsaved changes — quit? (y/n): "
+				if len(tabs) > 1 {
+					prompt = "Unsaved changes in open tabs — quit? (y/n): "
+				}
+				answer, ok := readPrompt(prompt)
+				if !ok || (answer != "y" && answer != "Y") {
+					break
+				}
+			}
+			return
+
+		// ── File operations ────────────────────────────────────────────────
+		case "ctrl-s":
+			if err := file.SaveFile(t.filePath, t.buf); err != nil {
+				t.status = fmt.Sprintf("Save failed: %v", err)
+			} else {
+				t.modified = false
+				result := ValidateBuffer(t.filePath, t.buf)
+				if !result.Valid {
+					t.status = "Saved — " + result.Message
+					t.errorLine = result.Line
+				} else {
+					t.status = "Saved"
+					t.errorLine = 0
+				}
+			}
+
+		case "ctrl-e":
+			result := ValidateBuffer(t.filePath, t.buf)
+			if result.Valid {
+				t.status = "✓ " + result.Message
+				t.errorLine = 0
+			} else {
+				t.status = result.Message
+				t.errorLine = result.Line
+				if result.Line > 0 && result.Line <= len(t.buf) {
+					t.cursor.Row = result.Line - 1
+					t.cursor.Col = 0
+				}
+			}
+
+		case "ctrl-t":
+			newBuf, err := FormatBuffer(t.filePath, t.buf)
+			if err != nil {
+				t.status = "Format failed: " + err.Error()
+			} else {
+				pushUndo(t.buf)
+				t.buf = newBuf
+				t.status = "Formatted"
+				t.errorLine = 0
+				if t.cursor.Row >= len(t.buf) {
+					t.cursor.Row = len(t.buf) - 1
+				}
+				if t.cursor.Col > len(t.buf[t.cursor.Row]) {
+					t.cursor.Col = len(t.buf[t.cursor.Row])
+				}
+			}
+
+		case "ctrl-g":
+			if input, ok := readPrompt("Go to line: "); ok && input != "" {
+				n := 0
+				fmt.Sscanf(input, "%d", &n)
+				if n >= 1 && n <= len(t.buf) {
+					t.cursor.Row = n - 1
+					t.cursor.Col = 0
+				}
+			}
+
+		// ── Undo / Redo ────────────────────────────────────────────────────
+		case "ctrl-z":
+			if prev, ok := popUndo(); ok {
+				t.buf = prev
+			}
+
+		case "ctrl-y":
+			if next, ok := popRedo(); ok {
+				t.buf = next
+			}
+
+		// ── Editing ────────────────────────────────────────────────────────
 		case "ctrl-shift-enter":
-			pushUndo(buf)
-			if cursor.Row >= 0 && cursor.Row < len(buf) {
-				newLine := []rune{}
-				buf = append(buf[:cursor.Row], append([][]rune{newLine}, buf[cursor.Row:]...)...)
+			pushUndo(t.buf)
+			if t.cursor.Row >= 0 && t.cursor.Row < len(t.buf) {
+				t.buf = append(t.buf[:t.cursor.Row], append([][]rune{{}}, t.buf[t.cursor.Row:]...)...)
 			}
 
 		case "shift-enter":
-			pushUndo(buf)
-			if cursor.Row < len(buf) {
-				newLine := []rune{}
-				buf = append(buf[:cursor.Row+1], append([][]rune{newLine}, buf[cursor.Row+1:]...)...)
-				cursor.Row++
+			pushUndo(t.buf)
+			if t.cursor.Row < len(t.buf) {
+				t.buf = append(t.buf[:t.cursor.Row+1], append([][]rune{{}}, t.buf[t.cursor.Row+1:]...)...)
+				t.cursor.Row++
 			}
 
 		case "ctrl-/":
-			pushUndo(buf)
-			if cursor.Row >= 0 && cursor.Row < len(buf) {
-				line := buf[cursor.Row]
+			pushUndo(t.buf)
+			if t.cursor.Row >= 0 && t.cursor.Row < len(t.buf) {
+				line := t.buf[t.cursor.Row]
 				if len(line) >= 2 && line[0] == '/' && line[1] == '/' {
-					buf[cursor.Row] = line[2:]
+					t.buf[t.cursor.Row] = line[2:]
 				} else {
-					buf[cursor.Row] = append([]rune{'/', '/'}, line...)
+					t.buf[t.cursor.Row] = append([]rune{'/', '/'}, line...)
 				}
 			}
 
 		case "ctrl-d":
-			pushUndo(buf)
-			if cursor.Row >= 0 && cursor.Row < len(buf) {
-				line := make([]rune, len(buf[cursor.Row]))
-				copy(line, buf[cursor.Row])
-				buf = append(buf[:cursor.Row+1], append([][]rune{line}, buf[cursor.Row+1:]...)...)
-				cursor.Row++
+			pushUndo(t.buf)
+			if t.cursor.Row >= 0 && t.cursor.Row < len(t.buf) {
+				line := make([]rune, len(t.buf[t.cursor.Row]))
+				copy(line, t.buf[t.cursor.Row])
+				t.buf = append(t.buf[:t.cursor.Row+1], append([][]rune{line}, t.buf[t.cursor.Row+1:]...)...)
+				t.cursor.Row++
 			}
 
+		case "ctrl-[":
+			removeLineTab(&t.buf, &t.cursor, &t.sel)
+
+		case "ctrl-]":
+			addLineTab(&t.buf, &t.cursor, &t.sel)
+
+		case "tab":
+			deleteSelection(&t.buf, &t.cursor, &t.sel)
+			pushUndo(t.buf)
+			for i := 0; i < 4; i++ {
+				insertRune(&t.buf, &t.cursor, ' ')
+			}
+
+		case "enter":
+			pushUndo(t.buf)
+			deleteSelection(&t.buf, &t.cursor, &t.sel)
+			insertNewline(&t.buf, &t.cursor)
+			moveCursor(&t.cursor, "", t.buf, &t.rowOffset, usableRows)
+
+		case "backspace":
+			pushUndo(t.buf)
+			deleteSelection(&t.buf, &t.cursor, &t.sel)
+			backspace(&t.buf, &t.cursor)
+
+		// ── Selection ──────────────────────────────────────────────────────
 		case "ctrl-a":
-			if len(buf) == 0 {
+			if len(t.buf) == 0 {
 				break
 			}
-			sel.Active = true
-			sel.StartRow = 0
-			sel.StartCol = 0
-			sel.EndRow = len(buf) - 1
-			sel.EndCol = len(buf[len(buf)-1])
-			cursor.Row = len(buf) - 1
-			cursor.Col = len(buf[len(buf)-1])
+			t.sel.Active = true
+			t.sel.StartRow, t.sel.StartCol = 0, 0
+			t.sel.EndRow = len(t.buf) - 1
+			t.sel.EndCol = len(t.buf[t.sel.EndRow])
+			t.cursor.Row = t.sel.EndRow
+			t.cursor.Col = t.sel.EndCol
 
+		// ── Find / Replace ─────────────────────────────────────────────────
 		case "ctrl-f":
 			if term, ok := readPrompt("Find: "); ok && term != "" {
-				for row, line := range buf {
+				for row, line := range t.buf {
 					if idx := indexOf(line, term); idx != -1 {
-						cursor.Row = row
-						cursor.Col = idx
+						t.cursor.Row = row
+						t.cursor.Col = idx
 						break
 					}
 				}
@@ -171,228 +346,119 @@ func RunQuickEditor(filePath string) {
 			if !ok {
 				break
 			}
-
-			pushUndo(buf)
-			replacementCount := 0
-			for row := range buf {
-				str := string(buf[row])
+			pushUndo(t.buf)
+			count := 0
+			for row := range t.buf {
+				str := string(t.buf[row])
 				if findIndex(str, searchTerm) != -1 {
-					buf[row] = []rune(replaceAll(str, searchTerm, replaceTerm))
-					replacementCount++
+					t.buf[row] = []rune(replaceAll(str, searchTerm, replaceTerm))
+					count++
 				}
 			}
-			status = fmt.Sprintf("Replaced %d occurrences", replacementCount)
-
-			// Clamp cursor — replacements may have shortened the current line.
-			if cursor.Row >= len(buf) {
-				cursor.Row = len(buf) - 1
+			t.status = fmt.Sprintf("Replaced %d occurrence(s)", count)
+			if t.cursor.Row >= len(t.buf) {
+				t.cursor.Row = len(t.buf) - 1
 			}
-			if cursor.Row >= 0 && cursor.Col > len(buf[cursor.Row]) {
-				cursor.Col = len(buf[cursor.Row])
+			if t.cursor.Row >= 0 && t.cursor.Col > len(t.buf[t.cursor.Row]) {
+				t.cursor.Col = len(t.buf[t.cursor.Row])
 			}
 
-		case "ctrl-y":
-			if next, ok := popRedo(); ok {
-				buf = next
-			}
-
-		case "ctrl-z":
-			if prev, ok := popUndo(); ok {
-				buf = prev
-			}
-
-
-		case "ctrl-q", "esc":
-			if modified {
-				answer, ok := readPrompt("Unsaved changes — quit? (y/n): ")
-				if !ok || (answer != "y" && answer != "Y") {
-					break
-				}
-			}
-			return
-
+		// ── Navigation ─────────────────────────────────────────────────────
 		case "home":
-			cursor.Col = 0
+			t.cursor.Col = 0
 
 		case "end":
-			cursor.Col = len(buf[cursor.Row])
+			t.cursor.Col = len(t.buf[t.cursor.Row])
 
 		case "up", "down", "left", "right":
-			sel.Active = false
-			moveCursor(&cursor, key, buf, &rowOffset, usableRows)
+			t.sel.Active = false
+			moveCursor(&t.cursor, key, t.buf, &t.rowOffset, usableRows)
 
-		case "tab":
-			deleteSelection(&buf, &cursor, &sel)
-			pushUndo(buf)
-			for i := 0; i < 4; i++ {
-				insertRune(&buf, &cursor, ' ')
-			}
+		case "alt-left", "alt-right", "alt-up", "alt-down":
+			moveCursor(&t.cursor, key, t.buf, &t.rowOffset, usableRows)
 
-		case "enter":
-			pushUndo(buf)
-			deleteSelection(&buf, &cursor, &sel)
-			insertNewline(&buf, &cursor)
-			moveCursor(&cursor, "", buf, &rowOffset, usableRows)
+		case "ctrl-left":
+			startSelectionIfNeeded(&t.sel, &t.cursor)
+			moveWordLeft(&t.cursor, t.buf)
+			updateSelection(&t.sel, &t.cursor)
+			clampSelection(&t.sel, t.buf)
 
-		case "backspace":
-			pushUndo(buf)
-			deleteSelection(&buf, &cursor, &sel)
-			backspace(&buf, &cursor)
+		case "ctrl-right":
+			startSelectionIfNeeded(&t.sel, &t.cursor)
+			moveWordRight(&t.cursor, t.buf)
+			updateSelection(&t.sel, &t.cursor)
+			clampSelection(&t.sel, t.buf)
 
-		case "ctrl-s":
-			if err := file.SaveFile(filePath, buf); err != nil {
-				status = fmt.Sprintf("Save failed: %v", err)
-			} else {
-				modified = false
-				result := ValidateBuffer(filePath, buf)
-				if !result.Valid {
-					status = "Saved — " + result.Message
-					errorLine = result.Line
-				} else {
-					status = "Saved"
-					errorLine = 0
+		case "ctrl-up":
+			startSelectionIfNeeded(&t.sel, &t.cursor)
+			if t.cursor.Row > 0 {
+				t.cursor.Row--
+				if t.cursor.Col > len(t.buf[t.cursor.Row]) {
+					t.cursor.Col = len(t.buf[t.cursor.Row])
 				}
 			}
+			updateSelection(&t.sel, &t.cursor)
+			clampSelection(&t.sel, t.buf)
 
-		case "ctrl-e":
-			result := ValidateBuffer(filePath, buf)
-			if result.Valid {
-				status = "✓ " + result.Message
-				errorLine = 0
-			} else {
-				status = result.Message
-				errorLine = result.Line
-				if result.Line > 0 && result.Line <= len(buf) {
-					cursor.Row = result.Line - 1
-					cursor.Col = 0
+		case "ctrl-down":
+			startSelectionIfNeeded(&t.sel, &t.cursor)
+			if t.cursor.Row < len(t.buf)-1 {
+				t.cursor.Row++
+				if t.cursor.Col > len(t.buf[t.cursor.Row]) {
+					t.cursor.Col = len(t.buf[t.cursor.Row])
 				}
 			}
+			updateSelection(&t.sel, &t.cursor)
+			clampSelection(&t.sel, t.buf)
 
-		case "ctrl-t":
-			newBuf, err := FormatBuffer(filePath, buf)
-			if err != nil {
-				status = "Format failed: " + err.Error()
-			} else {
-				pushUndo(buf)
-				buf = newBuf
-				status = "Formatted"
-				errorLine = 0
-				if cursor.Row >= len(buf) {
-					cursor.Row = len(buf) - 1
-				}
-				if cursor.Col > len(buf[cursor.Row]) {
-					cursor.Col = len(buf[cursor.Row])
-				}
-			}
+		// ── Clipboard ──────────────────────────────────────────────────────
+		case "ctrl-c":
+			copySelection(t.buf, &t.sel)
 
-		case "ctrl-g":
-			if input, ok := readPrompt("Go to line: "); ok && input != "" {
-				n := 0
-				fmt.Sscanf(input, "%d", &n)
-				if n >= 1 && n <= len(buf) {
-					cursor.Row = n - 1
-					cursor.Col = 0
-				}
-			}
+		case "ctrl-x":
+			pushUndo(t.buf)
+			cutSelection(&t.buf, &t.cursor, &t.sel)
 
-		case "ctrl-[":
-			removeLineTab(&buf, &cursor, &sel)
+		case "ctrl-v":
+			pushUndo(t.buf)
+			pasteText(&t.buf, &t.cursor)
 
-		case "ctrl-]":
-			addLineTab(&buf, &cursor, &sel)
-		
-		
+		// ── UI toggles ─────────────────────────────────────────────────────
 		case "ctrl-h":
 			ShowHelp()
 
 		case "ctrl-n":
 			showLineNumbers = !showLineNumbers
 
+		case "alt-w":
+			wordWrap = !wordWrap
 
-		// -------- CTRL + ARROWS (word-level movement + selection) --------
-		case "ctrl-left":
-			startSelectionIfNeeded(&sel, &cursor)
-			moveWordLeft(&cursor, buf)
-			updateSelection(&sel, &cursor)
-			clampSelection(&sel, buf)
-
-		case "ctrl-right":
-			startSelectionIfNeeded(&sel, &cursor)
-			moveWordRight(&cursor, buf)
-			updateSelection(&sel, &cursor)
-			clampSelection(&sel, buf)
-
-		case "ctrl-up":
-			startSelectionIfNeeded(&sel, &cursor)
-			if cursor.Row > 0 {
-				cursor.Row--
-				if cursor.Col > len(buf[cursor.Row]) {
-					cursor.Col = len(buf[cursor.Row])
-				}
-			}
-			updateSelection(&sel, &cursor)
-			clampSelection(&sel, buf)
-
-		case "ctrl-down":
-			startSelectionIfNeeded(&sel, &cursor)
-			if cursor.Row < len(buf)-1 {
-				cursor.Row++
-				if cursor.Col > len(buf[cursor.Row]) {
-					cursor.Col = len(buf[cursor.Row])
-				}
-			}
-			updateSelection(&sel, &cursor)
-			clampSelection(&sel, buf)
-
-		//=======Alt + Arrows for fast Navigation=======
-		case "alt-left":
-			moveCursor(&cursor, key, buf, &rowOffset, usableRows)
-		case "alt-right":
-			moveCursor(&cursor, key, buf, &rowOffset, usableRows)
-		case "alt-up":
-			moveCursor(&cursor, key, buf, &rowOffset, usableRows)
-		case "alt-down":
-			moveCursor(&cursor, key, buf, &rowOffset, usableRows)
-
-		// -------- CLIPBOARD --------
-
-		case "ctrl-c":
-			copySelection(buf, &sel)
-
-		case "ctrl-x":
-			pushUndo(buf)
-			cutSelection(&buf, &cursor, &sel)
-
+		// ── Bracketed paste ────────────────────────────────────────────────
 		case "paste-begin":
 			inBracketedPaste = true
 
 		case "paste-end":
 			inBracketedPaste = false
 
-		case "ctrl-v":
-			pushUndo(buf)
-			pasteText(&buf, &cursor)
-
-		// -------- SINGLE DEFAULT --------
+		// ── Default / character input ──────────────────────────────────────
 		default:
-
-			// If inside bracketed paste, treat bytes as literal input
 			if inBracketedPaste {
-				for _, b := range key {
-					if b == '\n' {
-						insertNewline(&buf, &cursor)
+				for _, ch := range key {
+					if ch == '\n' {
+						insertNewline(&t.buf, &t.cursor)
 					} else {
-						insertRune(&buf, &cursor, rune(b))
+						insertRune(&t.buf, &t.cursor, ch)
 					}
 				}
 				continue
 			}
-
-			// Normal character input
 			if len(key) == 1 && key[0] >= 32 {
-				deleteSelection(&buf, &cursor, &sel)
-				sel.Active = false
-				insertRune(&buf, &cursor, rune(key[0]))
+				deleteSelection(&t.buf, &t.cursor, &t.sel)
+				t.sel.Active = false
+				r := rune(key[0])
+				if !handleAutoClose(&t.buf, &t.cursor, r) {
+					insertRune(&t.buf, &t.cursor, r)
+				}
 			}
 		}
 	}

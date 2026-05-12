@@ -2,10 +2,72 @@ package editor
 
 import "strings"
 
+// autoClosePairs maps each opening character to its closing counterpart.
+var autoClosePairs = map[rune]rune{
+	'{':  '}',
+	'[':  ']',
+	'(':  ')',
+	'"':  '"',
+	'\'': '\'',
+	'`':  '`',
+}
+
+// isClosingChar reports whether r is any auto-close closing character.
+func isClosingChar(r rune) bool {
+	for _, v := range autoClosePairs {
+		if r == v {
+			return true
+		}
+	}
+	return false
+}
+
+// handleAutoClose processes a typed rune for auto-close bracket/quote logic.
+// Returns true if it handled the keystroke (caller should not insert the rune again).
+//
+//   - Opening char → insert opener + closer, leave cursor between them.
+//   - Closing char that matches the next char → skip over it (no insert).
+//   - Quote char where cursor is already between a matching pair → skip over it.
+func handleAutoClose(buf *[][]rune, cur *Cursor, r rune) bool {
+	line := (*buf)[cur.Row]
+
+	// If it's a closing character and the next char is already that closer, skip over it.
+	if isClosingChar(r) {
+		if cur.Col < len(line) && line[cur.Col] == r {
+			cur.Col++
+			return true
+		}
+	}
+
+	// If it's an opener, insert the pair and leave cursor in the middle.
+	if closer, ok := autoClosePairs[r]; ok {
+		insertRune(buf, cur, r)
+		insertRune(buf, cur, closer)
+		cur.Col-- // leave cursor between the pair
+		return true
+	}
+
+	return false
+}
+
 // Cursor represents the current cursor position in the editor (row and column)
 type Cursor struct {
 	Row int
 	Col int
+}
+
+// visualCol returns the visual (screen) column for character position col in line,
+// expanding tab characters to the next tab stop (tabSize-wide).
+func visualCol(line []rune, col, tabSize int) int {
+	vis := 0
+	for i := 0; i < col && i < len(line); i++ {
+		if line[i] == '\t' {
+			vis = (vis/tabSize+1) * tabSize
+		} else {
+			vis++
+		}
+	}
+	return vis
 }
 
 // bufToString converts a rune buffer back to a newline-delimited string.

@@ -171,6 +171,7 @@ func ShowHelp() {
         "  Ctrl+T             Format / pretty-print",
         "  Ctrl+G             Go to line",
         "  Ctrl+N             Toggle line numbers",
+        "  Alt+W              Toggle word-wrap",
         "  Ctrl+Q or Esc      Quit",
         "  Ctrl+H             Show this help",
     })

@@ -68,6 +68,7 @@ func readKey() string {
     case 19: return "ctrl-s"
     case 22: return "ctrl-v"
     case 24: return "ctrl-x"
+    case 23: return "ctrl-w"
     case 25: return "ctrl-y"
     case 26: return "ctrl-z"
     case 29: return "ctrl-]"

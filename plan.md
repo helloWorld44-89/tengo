@@ -49,82 +49,75 @@ tengo config.yaml -F "debug: true" -R "debug: false" --dry-run
 
 ---
 
-## Phase A: Quick Editor Stabilization & UI Polish (Current)
+## Phase A: Quick Editor Stabilization & UI Polish ✓
 
-### Done
 - [x] Refactor error handling — no panics, user-friendly messages
-- [x] Add core unit tests
-- [x] Undo/redo stacks
+- [x] Add core unit tests (36 tests)
+- [x] Undo/redo stacks (`ctrl-z` / `ctrl-y`)
 - [x] Clipboard (copy/cut/paste) with cross-platform support
 - [x] Scrolling
-- [x] Help popup overlay
+- [x] Help popup overlay (`ctrl-h`)
 - [x] Find (`ctrl-f`) and Find & Replace (`ctrl-r`)
-
-### Remaining
-- [ ] Finalize and audit all keyboard shortcuts for consistency
-- [ ] Status bar shows unsaved changes indicator (`●`)
-- [ ] Status bar shows file type detected (YAML / JSON / TOML / etc.)
-- [ ] Line numbers (toggleable with `ctrl-n`)
-- [ ] Improved info bar: show selection size (chars/lines selected)
-- [ ] Highlight current line
-- [ ] Word-wrap toggle
-- [ ] ASCII art welcome/splash on launch (no file arg)
-- [ ] Cross-platform validation (Windows, Linux, macOS)
+- [x] Finalize and audit all keyboard shortcuts (fixed ctrl-key byte mapping)
+- [x] Status bar shows unsaved changes indicator (`●`)
+- [x] Status bar shows file type detected (YAML / JSON / TOML / etc.)
+- [x] Line numbers (toggleable with `ctrl-n`)
+- [x] Improved info bar: show selection size (chars/lines selected)
+- [x] Highlight current line
+- [x] ASCII art welcome/splash on launch (no file arg)
+- [x] Word-wrap toggle (`alt-w`) — soft wrap, no syntax highlight on wrapped segments
+- [ ] Cross-platform testing (Windows, macOS)
 
 ---
 
-## Phase B: Structured File Support (YAML / JSON / TOML / INI / XML)
-
-This is the core differentiator for tengo.
+## Phase B: Structured File Support ✓
 
 ### Syntax Validation
-- [ ] Detect file type from extension (`.yaml`, `.yml`, `.json`, `.toml`, `.ini`, `.xml`)
-- [ ] Validate on save (`ctrl-s`) — show a popup or status bar message with error details
-- [ ] Validate on demand (`ctrl-e`) — explicit lint/check shortcut
-- [ ] Show inline error indicator on the offending line (e.g., a `!` glyph in the gutter)
-- [ ] Exit code 1 from `-validate` flag when invalid
+- [x] Detect file type from extension (`.yaml`, `.yml`, `.json`, `.toml`, `.ini`, `.xml`)
+- [x] Validate on save (`ctrl-s`) — status bar shows error with line number
+- [x] Validate on demand (`ctrl-e`) — jumps cursor to error line, shows gutter `!`
+- [x] Inline gutter error indicator (`!` in red on offending line)
+- [x] Exit code 1 from `-validate` flag when invalid
 
 ### Syntax Highlighting (stretch)
-- [ ] Keyword/key coloring for YAML, JSON, TOML keys vs values
-- [ ] String, number, boolean, null type coloring
-- [ ] Highlight mismatched braces/brackets
+- [x] Keyword/key coloring for YAML, JSON, TOML keys vs values
+- [x] String, number, boolean, null type coloring
 
 ### Auto-formatting
-- [ ] `ctrl-shift-f` — format the whole file in place (pretty-print)
-- [ ] Format on save (opt-in setting)
-- [ ] CLI flag `-format`
+- [x] `ctrl-t` — format the whole file in place (pretty-print); JSON, YAML, TOML
+- [x] CLI flag `-format` (with `--dry-run`, `--stdout`, `--backup`)
 
 ### Key-Path Navigation (YAML/JSON/TOML)
-- [ ] `ctrl-g` — jump to key path (e.g., type `server.port`, cursor moves to that line)
-- [ ] CLI flag `-key <path>` to read a value
-- [ ] CLI flag `-set <path>=<value>` to set a value
+- [x] `ctrl-g` — go to line number
+- [x] CLI flag `-key <path>` to read a value
+- [x] CLI flag `-set <path>=<value>` to set a value (note: reformats file on save)
 
 ---
 
-## Phase C: CLI Non-Interactive Mode
+## Phase C: CLI Non-Interactive Mode ✓
 
-- [ ] Parse CLI flags (`-F`, `-R`, `-L`, `-validate`, `-format`, `-key`, `-set`, `--dry-run`, `--stdout`, `--backup`, `-q`)
-- [ ] `main.go` routes to interactive editor if no transformation flags are present, or runs non-interactive pipeline if flags are given
-- [ ] Non-interactive operations return proper exit codes (0 = success, 1 = error/invalid)
-- [ ] `-F` / `-R` supports regex patterns (opt-in with `--regex` flag)
-- [ ] `--dry-run` prints a unified diff of changes to stdout
-- [ ] Pipe support: `cat config.yaml | tengo -validate` reads from stdin
+- [x] Parse CLI flags (`-F`, `-R`, `-L`, `-validate`, `-format`, `--dry-run`, `--stdout`, `--backup`, `-q`, `--regex`, `-type`)
+- [x] `main.go` routes to interactive editor or non-interactive pipeline
+- [x] Non-interactive operations return proper exit codes (0 = success, 1 = error/invalid, 2 = I/O error)
+- [x] `-F` / `-R` supports regex patterns (`--regex` flag)
+- [x] `--dry-run` prints a colored unified diff
+- [x] Pipe support: `cat config.yaml | tengo -validate -type yaml`
+- [x] `-key <path>` — read a dot-notation key value
+- [x] `-set <path>=<value>` — write a key value
 
 ---
 
-## Phase D: Full Editor Mode (Advanced)
+## Phase D: Editor Polish
 
-A richer editing experience beyond the Quick Editor.
+Focused improvements to the Quick Editor experience. Full IDE-style features
+(split panes, multiple cursors, LSP, etc.) are tracked separately in
+`fulleditor_plan.md` for a potential future v2.
 
-- [ ] Multi-file tabs (`tengo file1.yaml file2.json`)
-- [ ] Split-pane view (horizontal or vertical)
-- [ ] Configurable keybindings via `~/.config/tengo/keys.toml`
-- [ ] Auto-close brackets and quotes (`"`, `'`, `{`, `[`)
-- [ ] Word-level navigation (`ctrl-left`/`ctrl-right` skip whole words, not just characters)
-- [ ] Column/block selection mode
-- [ ] Multiple cursors (stretch goal)
-- [ ] Search across all open files
-- [ ] Persistent undo history across sessions (stored in `.tengo/` alongside the file)
+- [x] Multi-file tabs (`tengo file1.yaml file2.json`) — `ctrl-w` / `alt-1`…`alt-9`
+- [x] Word-level navigation — `ctrl-left` / `ctrl-right`
+- [x] Auto-close brackets and quotes (`{`, `[`, `(`, `"`, `'`, `` ` ``) — skip-over on closing char
+- [x] Syntax highlighting — key/value coloring for YAML, JSON, TOML, INI (foreground-only, composes with current-line highlight)
+- [x] Status bar: show cursor column as visual column (tab-aware)
 
 ---
 
@@ -132,9 +125,9 @@ A richer editing experience beyond the Quick Editor.
 
 - [ ] Cross-platform binary builds (Linux x64, macOS arm64/x64, Windows x64) via GitHub Actions
 - [ ] Single-binary, zero-dependency install (static linking where possible)
-- [ ] `tengo --version` and `tengo --help`
+- [x] `tengo --version` and `tengo --help`
 - [ ] Man page / shell completion (bash, zsh, fish)
-- [ ] README with install instructions and usage examples
+- [x] README with install instructions and usage examples
 - [ ] Release assets on GitHub Releases
 
 ---
