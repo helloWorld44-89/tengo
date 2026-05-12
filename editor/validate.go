@@ -22,6 +22,41 @@ type ValidationResult struct {
 
 var lineNumRe = regexp.MustCompile(`\bline (\d+)\b`)
 
+const yamlMaxNodes = 100_000
+
+// countYAMLNodes walks a yaml.Node tree simulating alias expansion and counts
+// effective nodes. Aliases are followed each time they appear, so exponentially
+// expanded structures (billion-laughs) are caught before the limit is reached.
+func countYAMLNodes(n *yaml.Node, count *int) error {
+	if n == nil {
+		return nil
+	}
+	if n.Kind == yaml.AliasNode {
+		return countYAMLNodes(n.Alias, count)
+	}
+	*count++
+	if *count > yamlMaxNodes {
+		return fmt.Errorf("alias expansion exceeds %d nodes; file rejected to prevent memory exhaustion", yamlMaxNodes)
+	}
+	for _, child := range n.Content {
+		if err := countYAMLNodes(child, count); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// CheckYAMLSafe parses content as YAML and returns an error if alias expansion
+// would produce more than yamlMaxNodes effective nodes.
+func CheckYAMLSafe(content string) error {
+	var node yaml.Node
+	if err := yaml.Unmarshal([]byte(content), &node); err != nil {
+		return err
+	}
+	count := 0
+	return countYAMLNodes(&node, &count)
+}
+
 // ValidateBuffer validates the in-memory buffer for the given filename's type.
 func ValidateBuffer(filename string, buf [][]rune) ValidationResult {
 	return ValidateContent(filename, bufToString(buf))
@@ -58,13 +93,17 @@ func validateJSON(content string) ValidationResult {
 }
 
 func validateYAML(content string) ValidationResult {
-	var v interface{}
-	if err := yaml.Unmarshal([]byte(content), &v); err != nil {
+	var node yaml.Node
+	if err := yaml.Unmarshal([]byte(content), &node); err != nil {
 		line := 0
 		if m := lineNumRe.FindStringSubmatch(err.Error()); len(m) > 1 {
 			line, _ = strconv.Atoi(m[1])
 		}
 		return ValidationResult{Valid: false, Line: line, Message: fmt.Sprintf("YAML: %v", err)}
+	}
+	count := 0
+	if err := countYAMLNodes(&node, &count); err != nil {
+		return ValidationResult{Valid: false, Message: fmt.Sprintf("YAML: %v", err)}
 	}
 	return ValidationResult{Valid: true, Message: "Valid YAML"}
 }

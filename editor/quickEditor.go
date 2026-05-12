@@ -248,11 +248,13 @@ func RunQuickEditor(filePaths []string) {
 		case "ctrl-z":
 			if prev, ok := popUndo(); ok {
 				t.buf = prev
+				clampCursor(&t.cursor, t.buf)
 			}
 
 		case "ctrl-y":
 			if next, ok := popRedo(); ok {
 				t.buf = next
+				clampCursor(&t.cursor, t.buf)
 			}
 
 		// ── Editing ────────────────────────────────────────────────────────

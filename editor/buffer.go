@@ -112,6 +112,7 @@ func backspace(buf *[][]rune, cur *Cursor) {
 
 // toBuffer converts a string into a 2D slice of runes (one line per slice)
 func toBuffer(content string) [][]rune {
+	content = strings.ReplaceAll(content, "\r\n", "\n")
 	lines :=strings.Split(content, "\n")
 	buf := make([][]rune,len(lines))
 	for i, line := range lines {
@@ -293,6 +294,27 @@ func normalizeSelection(sel *Selection) (sr, sc, er, ec int) {
         sc, ec = ec, sc
     }
     return
+}
+
+// clampCursor ensures the cursor row and column are within valid buffer bounds.
+func clampCursor(cur *Cursor, buf [][]rune) {
+    if len(buf) == 0 {
+        cur.Row, cur.Col = 0, 0
+        return
+    }
+    if cur.Row < 0 {
+        cur.Row = 0
+    }
+    if cur.Row >= len(buf) {
+        cur.Row = len(buf) - 1
+    }
+    maxCol := len(buf[cur.Row])
+    if cur.Col < 0 {
+        cur.Col = 0
+    }
+    if cur.Col > maxCol {
+        cur.Col = maxCol
+    }
 }
 
 // clampSelection ensures selection boundaries are within valid buffer bounds

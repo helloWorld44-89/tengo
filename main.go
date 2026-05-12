@@ -69,6 +69,7 @@ Interactive editor shortcuts:
 
 func main() {
 	versionFlag := flag.Bool("version", false, "Print version and exit")
+	completionFlag := flag.String("completion", "", "Print shell completion script: bash, zsh, or fish")
 	findFlag := flag.String("F", "", "Find occurrences of `text`")
 	replaceFlag := flag.String("R", "", "Replacement `text` (requires -F)")
 	confirmAll := flag.Bool("confirm-all", false, "Apply all replacements without per-occurrence confirmation")
@@ -102,6 +103,21 @@ func main() {
 
 	flag.Parse()
 
+	if *completionFlag != "" {
+		switch *completionFlag {
+		case "bash":
+			fmt.Print(bashCompletion)
+		case "zsh":
+			fmt.Print(zshCompletion)
+		case "fish":
+			fmt.Print(fishCompletion)
+		default:
+			fmt.Fprintf(os.Stderr, "Unknown shell %q; use: bash, zsh, or fish\n", *completionFlag)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+
 	// Filename may also appear as a positional arg after all flags.
 	if filePath == "" {
 		if flag.NArg() > 0 {
@@ -118,7 +134,13 @@ func main() {
 	// when the user overrides via -type or when reading from stdin.
 	typePath := filePath
 	if *typeFlag != "" {
-		typePath = "stdin." + strings.ToLower(*typeFlag)
+		switch strings.ToLower(*typeFlag) {
+		case "yaml", "yml", "json", "toml", "xml", "ini":
+			typePath = "stdin." + strings.ToLower(*typeFlag)
+		default:
+			fmt.Fprintf(os.Stderr, "Unknown -type %q; valid types: yaml, json, toml, xml, ini\n", *typeFlag)
+			os.Exit(1)
+		}
 	}
 
 	if *versionFlag {

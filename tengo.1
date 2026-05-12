@@ -1,0 +1,181 @@
+.TH TENGO 1 "2025-05-12" "tengo 0.1.0" "User Commands"
+.SH NAME
+tengo \- fast terminal editor for structured config files
+.SH SYNOPSIS
+.B tengo
+.RI [ file ...]
+.br
+.B tengo
+.I file
+.RI [ flags ]
+.SH DESCRIPTION
+.B tengo
+is a zero-config terminal text editor optimised for YAML, JSON, TOML, INI,
+and XML files.
+It can open files interactively or apply transformations non-interactively
+from the command line.
+.PP
+With no flags,
+.B tengo
+opens the given file(s) in the interactive editor.
+With one of the CLI flags below, it applies the operation and exits
+immediately \(em no editor is opened.
+.SH OPTIONS
+.SS "CLI mode (non-interactive)"
+.TP
+.BI \-F " text"
+Find all occurrences of
+.I text
+and print matching lines with line numbers and counts.
+.TP
+.BI \-R " text"
+Replacement text (requires
+.BR \-F ).
+Prompts for confirmation on each occurrence unless
+.B \-\-confirm\-all
+is given.
+.TP
+.B \-\-confirm\-all
+Apply all replacements without per-occurrence prompts.
+.TP
+.B \-\-regex
+Treat the
+.B \-F
+pattern as a regular expression.
+.TP
+.B \-\-dry\-run
+Show a colored unified diff of what would change without writing to disk.
+.TP
+.B \-\-stdout
+Print the result to stdout instead of saving in place.
+.TP
+.B \-\-backup
+Write a
+.I .bak
+copy of the original file before any destructive write.
+.TP
+.B \-validate
+Validate file syntax and exit.
+Exit code 0 = valid, 1 = invalid, 2 = I/O error.
+.TP
+.B \-format
+Auto-format / pretty-print the file in place.
+Supports YAML, JSON, and TOML.
+.TP
+.BI \-key " path"
+Read the value at the dot-notation key path
+(e.g.\&
+.IR database.host ).
+Supports YAML, JSON, and TOML.
+.TP
+.BI \-set " path" = value
+Set the value at the dot-notation key path and save.
+Note: the file is re-marshaled, so original formatting and comments are
+not preserved.
+.TP
+.BI \-L " n"
+Print line
+.I n
+(1-based) and exit.
+.TP
+.BI \-type " ext"
+Specify the file type when reading from stdin: yaml, json, toml, xml, ini.
+.TP
+.B \-q
+Suppress output; rely on exit codes only.
+.TP
+.BI \-completion " shell"
+Print a shell completion script for
+.I shell
+(bash, zsh, or fish) to stdout and exit.
+.TP
+.B \-version
+Print the version string and exit.
+.TP
+.B \-help
+Print usage information and exit.
+.SH "INTERACTIVE EDITOR SHORTCUTS"
+.TS
+l l.
+Ctrl+S	Save (validates on save)
+Ctrl+Q / Esc	Quit
+Ctrl+Z / Ctrl+Y	Undo / Redo
+Ctrl+F	Find
+Ctrl+R	Find & Replace
+Ctrl+E	Validate syntax
+Ctrl+T	Format / pretty-print
+Ctrl+G	Go to line
+Ctrl+N	Toggle line numbers
+Alt+W	Toggle word-wrap
+Ctrl+A	Select all
+Ctrl+C / Ctrl+X / Ctrl+V	Copy / Cut / Paste
+Ctrl+] / Ctrl+[	Indent / Outdent
+Ctrl+D	Duplicate line
+Ctrl+/	Toggle comment
+Shift+Enter	Insert line below
+Ctrl+Shift+Enter	Insert line above
+Ctrl+Left / Ctrl+Right	Word jump + select
+Alt+Arrow	Fast navigation (4 steps)
+Ctrl+W	Next tab
+Alt+1 \(en Alt+9	Switch to tab N
+Ctrl+H	Help overlay
+.TE
+.SH "FILE TYPES"
+.TS
+l l l l l.
+Extension	Highlight	Validate	Format	\-key/\-set
+\&.yaml / .yml	yes	yes	yes	yes
+\&.json	yes	yes	yes	yes
+\&.toml	yes	yes	yes	yes
+\&.ini / .cfg	yes	yes	\-	\-
+\&.xml	\-	yes	\-	\-
+.TE
+.SH EXAMPLES
+.TP
+Open a file in the interactive editor:
+.B tengo config.yaml
+.TP
+Open multiple files in tabs:
+.B tengo config.yaml secrets.json
+.TP
+Validate syntax:
+.B tengo config.yaml \-validate
+.TP
+Find and replace, preview only:
+.B tengo config.yaml \-F localhost \-R 0.0.0.0 \-\-dry\-run
+.TP
+Format in place with a backup:
+.B tengo config.json \-format \-\-backup
+.TP
+Read a key value:
+.B tengo config.yaml \-key database.host
+.TP
+Set a key value:
+.B tengo config.yaml \-set database.port=5432
+.TP
+Validate from stdin:
+.B cat config.yaml | tengo \-validate \-type yaml
+.TP
+Install bash completion:
+.B source <(tengo \-completion bash)
+.TP
+Install zsh completion:
+.B tengo \-completion zsh > ~/.zfunc/_tengo
+.TP
+Install fish completion:
+.B tengo \-completion fish > ~/.config/fish/completions/tengo.fish
+.SH "EXIT CODES"
+.TP
+.B 0
+Success (or valid when using \-validate).
+.TP
+.B 1
+Invalid syntax, key not found, or no matches.
+.TP
+.B 2
+I/O error or bad arguments.
+.SH AUTHOR
+Written by jconder44.
+.SH "SEE ALSO"
+.BR vim (1),
+.BR nano (1)

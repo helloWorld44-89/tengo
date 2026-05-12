@@ -11,6 +11,18 @@ import (
 	"tengo/file"
 )
 
+// readLimited reads at most file.MaxFileBytes from r, returning an error if the limit is exceeded.
+func readLimited(r io.Reader) ([]byte, error) {
+	b, err := io.ReadAll(io.LimitReader(r, file.MaxFileBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(b)) > file.MaxFileBytes {
+		return nil, fmt.Errorf("input too large; maximum is 50 MB")
+	}
+	return b, nil
+}
+
 const (
 	clrRed   = "\x1b[31;1m"
 	clrGreen = "\x1b[32;1m"
@@ -24,14 +36,21 @@ const (
 // The phantom empty element produced by a trailing \n is dropped.
 func readFileLines(path string) (lines []string, original []byte, err error) {
 	if path == "-" {
-		original, err = io.ReadAll(os.Stdin)
+		original, err = readLimited(os.Stdin)
 	} else {
-		original, err = os.ReadFile(path)
+		var info os.FileInfo
+		info, err = os.Stat(path)
+		if err == nil && info.Size() > file.MaxFileBytes {
+			err = fmt.Errorf("file too large (%d MB); maximum is 50 MB", info.Size()/(1024*1024))
+		}
+		if err == nil {
+			original, err = os.ReadFile(path)
+		}
 	}
 	if err != nil {
 		return
 	}
-	lines = strings.Split(string(original), "\n")
+	lines = strings.Split(strings.ReplaceAll(string(original), "\r\n", "\n"), "\n")
 	if len(lines) > 0 && lines[len(lines)-1] == "" {
 		lines = lines[:len(lines)-1]
 	}
@@ -427,9 +446,16 @@ func runValidate(path, typePath string, quiet bool) int {
 	var content []byte
 	var err error
 	if path == "-" {
-		content, err = io.ReadAll(os.Stdin)
+		content, err = readLimited(os.Stdin)
 	} else {
-		content, err = os.ReadFile(path)
+		var info os.FileInfo
+		info, err = os.Stat(path)
+		if err == nil && info.Size() > file.MaxFileBytes {
+			err = fmt.Errorf("file too large (%d MB); maximum is 50 MB", info.Size()/(1024*1024))
+		}
+		if err == nil {
+			content, err = os.ReadFile(path)
+		}
 	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -598,9 +624,16 @@ func runFormat(path, typePath string, dryRun, toStdout, backup, quiet bool) int 
 	var content []byte
 	var err error
 	if path == "-" {
-		content, err = io.ReadAll(os.Stdin)
+		content, err = readLimited(os.Stdin)
 	} else {
-		content, err = os.ReadFile(path)
+		var info os.FileInfo
+		info, err = os.Stat(path)
+		if err == nil && info.Size() > file.MaxFileBytes {
+			err = fmt.Errorf("file too large (%d MB); maximum is 50 MB", info.Size()/(1024*1024))
+		}
+		if err == nil {
+			content, err = os.ReadFile(path)
+		}
 	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)

@@ -156,6 +156,32 @@ cat config.yaml | tengo -F "host" -type yaml
 
 ---
 
+## Shell completions
+
+```bash
+# bash — add to ~/.bashrc
+source <(tengo -completion bash)
+
+# zsh — add to a directory in $fpath
+tengo -completion zsh > ~/.zfunc/_tengo
+
+# fish
+tengo -completion fish > ~/.config/fish/completions/tengo.fish
+```
+
+---
+
+## Man page
+
+```bash
+# Install
+tengo -completion bash   # see install instructions above first
+sudo cp tengo.1 /usr/local/share/man/man1/
+man tengo
+```
+
+---
+
 ## License
 
 MIT

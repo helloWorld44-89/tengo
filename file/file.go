@@ -2,12 +2,23 @@ package file
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
+const MaxFileBytes = 50 * 1024 * 1024 // 50 MB
+
 func OpenFile(path string) (string, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return "", err
+	}
+	if info.Size() > MaxFileBytes {
+		return "", fmt.Errorf("file too large (%d MB); maximum is 50 MB", info.Size()/(1024*1024))
+	}
+
 	file, err := os.Open(path)
 	if err != nil {
 		return "", err

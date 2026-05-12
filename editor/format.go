@@ -50,6 +50,10 @@ func formatYAML(content string) (string, error) {
 	if err := yaml.Unmarshal([]byte(content), &node); err != nil {
 		return "", err
 	}
+	count := 0
+	if err := countYAMLNodes(&node, &count); err != nil {
+		return "", err
+	}
 	var buf bytes.Buffer
 	enc := yaml.NewEncoder(&buf)
 	enc.SetIndent(2)

@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"tengo/editor"
+	"tengo/file"
 
 	"github.com/BurntSushi/toml"
 	"gopkg.in/yaml.v3"
@@ -157,9 +159,19 @@ func readFileContent(path string) (string, error) {
 	var b []byte
 	var err error
 	if path == "-" {
-		b, err = io.ReadAll(os.Stdin)
+		b, err = io.ReadAll(io.LimitReader(os.Stdin, file.MaxFileBytes+1))
+		if err == nil && int64(len(b)) > file.MaxFileBytes {
+			err = fmt.Errorf("input too large; maximum is 50 MB")
+		}
 	} else {
-		b, err = os.ReadFile(path)
+		var info os.FileInfo
+		info, err = os.Stat(path)
+		if err == nil && info.Size() > file.MaxFileBytes {
+			err = fmt.Errorf("file too large (%d MB); maximum is 50 MB", info.Size()/(1024*1024))
+		}
+		if err == nil {
+			b, err = os.ReadFile(path)
+		}
 	}
 	if err != nil {
 		return "", err
@@ -178,6 +190,9 @@ func unmarshalGeneric(typePath, content string) (interface{}, error) {
 		}
 		return data, nil
 	case "yaml":
+		if err := editor.CheckYAMLSafe(content); err != nil {
+			return nil, err
+		}
 		var data interface{}
 		if err := yaml.Unmarshal([]byte(content), &data); err != nil {
 			return nil, err
