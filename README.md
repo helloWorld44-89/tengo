@@ -8,20 +8,85 @@ Open any YAML, JSON, TOML, INI, or XML file for interactive editing, or run non-
 
 ## Install
 
-### Download a binary
-
-Pre-built binaries for Linux, macOS, and Windows are available on the [Releases](https://github.com/helloWorld44-89/tengo/releases) page.
+### Linux
 
 ```bash
-# Linux x64 example
-curl -Lo tengo https://github.com/helloWorld44-89/tengo/releases/latest/download/tengo-linux-amd64
-chmod +x tengo
-sudo mv tengo /usr/local/bin/
+curl -fsSL https://raw.githubusercontent.com/helloWorld44-89/tengo/main/install.sh | bash
 ```
 
-### Build from source
+Detects your architecture (`amd64` / `arm64`), installs to `/usr/local/bin` (or `~/.local/bin` if sudo isn't available), and prints completion setup instructions.
+
+**Update:**
+```bash
+tengo -update
+```
+
+---
+
+### macOS
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/helloWorld44-89/tengo/main/install.sh | bash
+```
+
+Same script as Linux — detects `darwin/arm64` (Apple Silicon) or `darwin/amd64` (Intel) automatically.
+
+**Update:**
+```bash
+tengo -update
+```
+
+Or via Homebrew (see below).
+
+---
+
+### Windows
+
+Run in PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/helloWorld44-89/tengo/main/install.ps1 | iex"
+```
+
+Installs to `%LOCALAPPDATA%\Programs\tengo` and adds it to your user PATH automatically. No admin rights required.
+
+**Update:**
+```powershell
+tengo -update
+```
+
+---
+
+### Homebrew (macOS and Linux)
+
+```bash
+brew tap helloWorld44-89/tengo
+brew install tengo
+```
+
+**Update:**
+```bash
+brew upgrade tengo
+```
+
+---
+
+### Go install
 
 Requires Go 1.23+.
+
+```bash
+go install github.com/helloWorld44-89/tengo@latest
+```
+
+**Update:**
+```bash
+go install github.com/helloWorld44-89/tengo@latest
+```
+
+---
+
+### Build from source
 
 ```bash
 git clone https://github.com/helloWorld44-89/tengo.git

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"tengo/editor"
+	"github.com/helloWorld44-89/tengo/editor"
 )
 
 var version = "0.1.0"
@@ -69,6 +69,7 @@ Interactive editor shortcuts:
 
 func main() {
 	versionFlag := flag.Bool("version", false, "Print version and exit")
+	updateFlag := flag.Bool("update", false, "Download and install the latest release")
 	completionFlag := flag.String("completion", "", "Print shell completion script: bash, zsh, or fish")
 	findFlag := flag.String("F", "", "Find occurrences of `text`")
 	replaceFlag := flag.String("R", "", "Replacement `text` (requires -F)")
@@ -146,6 +147,10 @@ func main() {
 	if *versionFlag {
 		fmt.Println("tengo " + version)
 		os.Exit(0)
+	}
+
+	if *updateFlag {
+		os.Exit(runUpdate(*quiet))
 	}
 
 	// CLI (non-interactive) mode.

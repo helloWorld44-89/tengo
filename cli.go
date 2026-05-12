@@ -7,8 +7,8 @@ import (
 	"os"
 	"regexp"
 	"strings"
-	"tengo/editor"
-	"tengo/file"
+	"github.com/helloWorld44-89/tengo/editor"
+	"github.com/helloWorld44-89/tengo/file"
 )
 
 // readLimited reads at most file.MaxFileBytes from r, returning an error if the limit is exceeded.

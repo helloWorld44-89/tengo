@@ -9,7 +9,7 @@ _tengo_completion() {
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="-F -R -validate -format -L -key -set -type -version -dry-run -stdout -backup -q -regex -confirm-all -completion"
+    opts="-F -R -validate -format -L -key -set -type -version -update -dry-run -stdout -backup -q -regex -confirm-all -completion"
 
     case "${prev}" in
         -type)
@@ -52,6 +52,7 @@ _tengo() {
         '-set[Set value at dot-notation key path]:path=value:' \
         '-type[File type for stdin input]:type:(yaml yml json toml xml ini)' \
         '-version[Print version and exit]' \
+        '-update[Download and install the latest release]' \
         '-dry-run[Show diff without writing to disk]' \
         '-stdout[Print result to stdout instead of saving]' \
         '-backup[Write .bak backup before modifying]' \
@@ -78,6 +79,7 @@ complete -c tengo -l key      -d 'Read value at dot-notation key path'          
 complete -c tengo -l set      -d 'Set value at dot-notation key path'           -r
 complete -c tengo -l type     -d 'File type for stdin input'                    -r -a 'yaml yml json toml xml ini'
 complete -c tengo -l version  -d 'Print version and exit'
+complete -c tengo -l update   -d 'Download and install the latest release'
 complete -c tengo -l dry-run  -d 'Show diff without writing to disk'
 complete -c tengo -l stdout   -d 'Print result to stdout instead of saving'
 complete -c tengo -l backup   -d 'Write .bak backup before modifying'

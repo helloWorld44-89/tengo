@@ -3,7 +3,7 @@ package editor
 import (
 	"fmt"
 	"os"
-	"tengo/file"
+	"github.com/helloWorld44-89/tengo/file"
 )
 
 // indexOf searches for a substring in a line of runes

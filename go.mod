@@ -1,4 +1,4 @@
-module tengo
+module github.com/helloWorld44-89/tengo
 
 go 1.23.0
 

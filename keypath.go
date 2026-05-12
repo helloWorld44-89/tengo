@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"tengo/editor"
-	"tengo/file"
+	"github.com/helloWorld44-89/tengo/editor"
+	"github.com/helloWorld44-89/tengo/file"
 
 	"github.com/BurntSushi/toml"
 	"gopkg.in/yaml.v3"
