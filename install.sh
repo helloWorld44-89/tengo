@@ -84,7 +84,7 @@ main() {
     local url="https://github.com/$REPO/releases/latest/download/$asset"
     local tmp
     tmp="$(mktemp)"
-    trap 'rm -f "$tmp"' EXIT
+    trap 'rm -f "${tmp:-}"' EXIT
 
     info "Downloading latest release..."
     download "$url" "$tmp"
