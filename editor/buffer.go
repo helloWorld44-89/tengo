@@ -110,6 +110,21 @@ func backspace(buf *[][]rune, cur *Cursor) {
     cur.Col--
 }
 
+// deleteForward deletes the character at the cursor position, or merges the next line if at EOL.
+func deleteForward(buf *[][]rune, cur *Cursor) {
+    line := (*buf)[cur.Row]
+    if cur.Col < len(line) {
+        (*buf)[cur.Row] = append(line[:cur.Col], line[cur.Col+1:]...)
+        return
+    }
+    // At end of line: merge next line into current
+    if cur.Row < len(*buf)-1 {
+        next := (*buf)[cur.Row+1]
+        (*buf)[cur.Row] = append(line, next...)
+        *buf = append((*buf)[:cur.Row+1], (*buf)[cur.Row+2:]...)
+    }
+}
+
 // toBuffer converts a string into a 2D slice of runes (one line per slice)
 func toBuffer(content string) [][]rune {
 	content = strings.ReplaceAll(content, "\r\n", "\n")

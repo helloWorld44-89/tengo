@@ -36,8 +36,6 @@ Same script as Linux — detects `darwin/arm64` (Apple Silicon) or `darwin/amd64
 tengo -update
 ```
 
-Or via Homebrew (see below).
-
 ---
 
 ### Windows
@@ -59,21 +57,13 @@ tengo -update
 
 ### Homebrew (macOS and Linux)
 
-```bash
-brew tap helloWorld44-89/tengo
-brew install tengo
-```
-
-**Update:**
-```bash
-brew upgrade tengo
-```
+> **Coming soon** — Homebrew tap is not yet available.
 
 ---
 
 ### Go install
 
-Requires Go 1.23+.
+Requires Go 1.25+.
 
 ```bash
 go install github.com/helloWorld44-89/tengo@latest

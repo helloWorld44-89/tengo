@@ -330,6 +330,11 @@ func RunQuickEditor(filePaths []string, updateCh <-chan string) {
 			deleteSelection(&t.buf, &t.cursor, &t.sel)
 			backspace(&t.buf, &t.cursor)
 
+		case "delete":
+			pushUndo(t.buf)
+			deleteSelection(&t.buf, &t.cursor, &t.sel)
+			deleteForward(&t.buf, &t.cursor)
+
 		// ── Selection ──────────────────────────────────────────────────────
 		case "ctrl-a":
 			if len(t.buf) == 0 {

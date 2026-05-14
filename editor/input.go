@@ -170,11 +170,12 @@ func readKey() string {
     }
 
     // ============================================
-    // 8. Page Up / Page Down
+    // 8. Page Up / Page Down / Delete
     // ============================================
     switch s {
     case "\x1b[5~": return "page-up"
     case "\x1b[6~": return "page-down"
+    case "\x1b[3~": return "delete"
     }
 
     // ============================================
